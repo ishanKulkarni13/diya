@@ -1,7 +1,0 @@
-{
-    "prisma-smart-formatter.typescript.defaultFormatter": "esbenp.prettier-vscode",
-    "prisma-smart-formatter.typescriptreact.defaultFormatter": "esbenp.prettier-vscode",
-    "prisma-smart-formatter.prisma.defaultFormatter": "Prisma.prisma",
-    "cmake.sourceDirectory": "D:/IMP-projects/2ndEye/diya_flutter/linux",
-    "java.compile.nullAnalysis.mode": "disabled"
-}
