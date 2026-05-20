@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_bearer_token
 from app.db.session import get_db
-from app.schemas import LoginRequest, RegisterRequest, LogoutRequest, RefreshRequest
+from app.schemas import LoginRequest, LogoutRequest, RefreshRequest
 
 from .repository import SqlAlchemyAuthRepository
 from .service import AuthService
@@ -26,30 +26,6 @@ async def login(
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     token_pair = await auth_service.login(request)
-    return {
-        "success": True,
-        "data": {
-            "access_token": token_pair.access_token,
-            "refresh_token": token_pair.refresh_token,
-            "expires_in": token_pair.expires_in,
-            "session_id": token_pair.session_id,
-            "token_version": token_pair.token_version,
-            "user": {
-                "id": token_pair.user.id,
-                "email": token_pair.user.email,
-                "roles": token_pair.user.roles,
-            },
-        },
-        "trace_id": x_trace_id or "trace-local-demo",
-    }
-
-@router.post("/register")
-async def register(
-    request: RegisterRequest,
-    auth_service: AuthService = Depends(get_auth_service),
-    x_trace_id: str | None = Header(default=None),
-) -> dict:
-    token_pair = await auth_service.register(request)
     return {
         "success": True,
         "data": {
