@@ -33,8 +33,8 @@ class AssistController extends StateNotifier<AssistState> {
     final intent = _normalizer.normalize(trigger);
     
     // Check safety state
-    final safetyState = _ref.read(safetyControllerProvider);
-    final isSafetyActive = safetyState.status != SafetyStatus.idle && safetyState.status != SafetyStatus.failed;
+    final safetyController = _ref.read(safetyControllerProvider);
+    final isSafetyActive = safetyController.state.status != SafetyStatus.idle && safetyController.state.status != SafetyStatus.failed;
 
     try {
       final response = await _pipeline.executeTurn(

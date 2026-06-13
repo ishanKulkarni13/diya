@@ -1,4 +1,4 @@
-import '../../../core/errors/app_error.dart';
+import '../../../../core/errors/app_error.dart';
 
 enum AssistStatus {
   idle,

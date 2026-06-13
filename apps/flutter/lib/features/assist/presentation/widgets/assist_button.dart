@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/models/assist_trigger.dart';
-import '../providers/assist_providers.dart';
+import '../../domain/models/assist_state.dart';
+import '../../domain/models/assist_trigger.dart';
+import '../../providers/assist_providers.dart';
 
 class AssistButton extends ConsumerWidget {
   const AssistButton({super.key});
@@ -38,7 +39,7 @@ class AssistButton extends ConsumerWidget {
     );
   }
 
-  Widget _buildChild(BuildContext context, state) {
+  Widget _buildChild(BuildContext context, AssistState state) {
     if (state.isBusy) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -70,7 +71,7 @@ class AssistButton extends ConsumerWidget {
     );
   }
 
-  String _getStatusText(state) {
+  String _getStatusText(AssistState state) {
     if (state.isCapturing) return 'Capturing...';
     if (state.isAnalyzing) return 'Analyzing...';
     if (state.isSpeaking) return 'Speaking...';
