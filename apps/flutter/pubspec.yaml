@@ -43,6 +43,8 @@ dependencies:
   uuid: ^4.0.0
   network_info_plus: ^8.1.0
   flutter_dotenv: ^5.0.2
+  image_picker: ^1.2.2
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
