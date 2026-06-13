@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/hardware/providers/hardware_providers.dart';
+import '../assist/presentation/widgets/assist_button.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -45,6 +46,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 style: TextStyle(color: Colors.grey),
               ),
             ),
+            const SizedBox(height: 48),
+            const AssistButton(),
           ],
         ),
       ),

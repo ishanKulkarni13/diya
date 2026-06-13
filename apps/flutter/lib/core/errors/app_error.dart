@@ -1,4 +1,4 @@
-enum AppErrorType { auth, network, permission, safety, unknown }
+enum AppErrorType { auth, network, permission, safety, assist, unknown }
 
 class AppError implements Exception {
   const AppError({
@@ -27,6 +27,10 @@ class AppError implements Exception {
 
   factory AppError.safety(String message, {String? code, bool retryable = false}) {
     return AppError(type: AppErrorType.safety, message: message, code: code, retryable: retryable);
+  }
+
+  factory AppError.assist(String message, {String? code, bool retryable = false}) {
+    return AppError(type: AppErrorType.assist, message: message, code: code, retryable: retryable);
   }
 
   factory AppError.unknown(String message, {String? code, bool retryable = false}) {
