@@ -4,7 +4,7 @@ This roadmap is phased to minimize rewrites. Each phase should leave the system 
 
 ## Phase 1: Assist Vertical Slice
 
-Goal: implement single tap `Capture -> Analyze -> Speak` through the final architecture shape.
+Goal: implement the smallest end-to-end Assist slice with a UI tap, image capture, a FastAPI round trip, a mock response, and TTS.
 
 Scope:
 
@@ -14,39 +14,40 @@ Scope:
 - `AssistPipeline`
 - `ImageCapturePort`
 - `SpeechOutputPort`
-- `AssistRepository`
+- `AssistApi`
 - FastAPI Assist session/turn endpoint
-- backend Gemini provider adapter
 - phone camera capture
 - Flutter TTS
+- mocked backend response path
 
 Dependencies:
 
 - authenticated session
 - camera permission
-- backend media upload or direct temporary media contract
-- Gemini backend configuration
+- FastAPI route and request/response contract
+- mock response payload
 
 Risks:
 
-- latency
-- provider errors
+- overbuilding persistence too early
+- coupling the slice to Gemini before the contract is proven
 - media handling shortcuts becoming permanent
 
 Verification strategy:
 
 - unit-test state machine
-- fake repository pipeline test
-- backend service tests with fake provider
+- fake API pipeline test
+- backend service tests with mock response
 - manual single-tap assist on Android
 
 Success criteria:
 
 - single tap uses the shared pipeline
-- no Gemini secrets in Flutter
-- turn is persisted in FastAPI
+- Flutter never needs Gemini secrets
+- one Assist turn can round-trip through FastAPI
 - TTS can be stopped
-- duplicate taps do not create duplicate provider calls
+- duplicate taps do not create duplicate turn submissions
+- the request/response shape is stable enough for later Gemini wiring
 
 ## Phase 2: Conversation Persistence
 
