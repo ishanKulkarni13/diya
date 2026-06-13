@@ -90,6 +90,7 @@ class ProviderSettings(BaseSettings):
     """External provider credentials — all optional until the module is active."""
 
     gemini_api_key: str | None = Field(default=None, description="Google AI Studio API key for Gemini")
+    gemini_model_name: str = Field(default="gemini-2.5-flash", description="Gemini model to use for Assist")
     fcm_credentials_path: str | None = Field(default=None, description="Path to Firebase service account JSON")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
