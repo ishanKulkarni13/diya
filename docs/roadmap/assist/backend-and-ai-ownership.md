@@ -74,7 +74,7 @@ Provider adapters should translate backend-neutral context into provider-specifi
 
 ## Gemini V1 Recommendation
 
-Use the official Google Gen AI SDK from the FastAPI backend. Use a Flash-class multimodal Gemini model for V1 because Assist needs image understanding, low latency, and a path to streaming. Keep the exact model name configuration-driven so upgrades do not require Flutter releases.
+Use the official Google Gen AI SDK from the FastAPI backend. Use a Flash-class multimodal Gemini model for V1 because Assist needs image understanding, low latency, and a future path to streaming. Keep the exact model name configuration-driven so upgrades do not require Flutter releases.
 
 The backend should record:
 

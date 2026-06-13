@@ -17,6 +17,7 @@ Assist is expected to become the shared pipeline for UI taps, long press questio
 9. [foreground-service-readiness.md](foreground-service-readiness.md)
 10. [risks-and-open-decisions.md](risks-and-open-decisions.md)
 11. [implementation-roadmap.md](implementation-roadmap.md)
+12. [13-decisions-log.md](13-decisions-log.md)
 
 ## Non-Goals
 
@@ -35,4 +36,4 @@ The central design rule is:
 Many trigger sources -> one normalized AssistIntent -> one Assist pipeline -> one backend turn contract
 ```
 
-This keeps the system maintainable as Diya adds Smart Goggles, Smart Cane triggers, wake words, foreground services, streaming responses, and multiple AI providers.
+This keeps the system maintainable as Diya adds Smart Goggles, Smart Cane triggers, wake words, foreground services, future streaming responses, and multiple AI providers.

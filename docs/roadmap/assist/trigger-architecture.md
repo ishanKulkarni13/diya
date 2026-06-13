@@ -84,7 +84,7 @@ The pipeline should depend on ports:
 ImageCapturePort
 SpeechInputPort
 SpeechOutputPort
-AssistRepository
+AssistApi
 AssistRuntimeStore
 AssistPolicyEngine
 ```

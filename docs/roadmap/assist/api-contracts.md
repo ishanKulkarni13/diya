@@ -8,7 +8,7 @@ These contracts are proposed planning artifacts. They should follow the existing
 - FastAPI assembles prompts and calls AI providers.
 - Every turn request should support idempotency.
 - API responses should be provider-neutral.
-- Streaming should be additive, not a breaking change.
+- Streaming should be additive later, not part of the MVP contract.
 
 ## Endpoints
 
@@ -18,7 +18,6 @@ GET /api/v1/assist/sessions/{session_id}
 POST /api/v1/assist/sessions/{session_id}/turns
 GET /api/v1/assist/sessions/{session_id}/turns/{turn_id}
 POST /api/v1/assist/sessions/{session_id}/cancel
-WS /api/v1/assist/sessions/{session_id}/stream
 ```
 
 ## Create Session
@@ -62,43 +61,18 @@ Response:
 
 ```txt
 POST /api/v1/assist/sessions/{session_id}/turns
+Content-Type: multipart/form-data
 Idempotency-Key: <key>
 Authorization: Bearer <token>
 ```
 
-Request:
+Preferred V1 request shape:
 
-```json
-{
-  "intent": {
-    "type": "answer_question_about_scene",
-    "user_question": "What is in front of me?"
-  },
-  "trigger": {
-    "source_type": "ui_button",
-    "press_type": "long_press",
-    "source_device_id": null,
-    "occurred_at": "2026-06-14T00:00:00Z"
-  },
-  "media": [
-    {
-      "type": "image",
-      "source": "phone_camera",
-      "upload_id": "string",
-      "content_type": "image/jpeg",
-      "captured_at": "2026-06-14T00:00:00Z",
-      "retention": "ephemeral"
-    }
-  ],
-  "client_context": {
-    "locale": "en-IN",
-    "timezone": "Asia/Calcutta",
-    "device_state": {
-      "smart_cane_connected": true,
-      "smart_goggles_connected": false
-    }
-  }
-}
+```txt
+intent_json: {"type":"describe_scene"}
+trigger_json: {"source_type":"ui_button","press_type":"tap","occurred_at":"2026-06-14T00:00:00Z"}
+client_context_json: {"locale":"en-IN","timezone":"Asia/Calcutta","device_state":{"smart_cane_connected":true,"smart_goggles_connected":false}}
+image_file: <binary jpeg/png>
 ```
 
 Response:
@@ -126,6 +100,30 @@ Response:
   "trace_id": "string"
 }
 ```
+
+## V1 Media Recommendation
+
+Use `multipart/form-data` for the first implementation.
+
+Why this is the best V1 choice:
+
+- It keeps the first vertical slice to one request and one response.
+- It is easy to implement in Flutter and FastAPI.
+- It avoids base64 expansion, which wastes bandwidth and memory.
+- It avoids an upload-first contract before we know whether Assist needs durable media or resumable uploads.
+
+Why not base64:
+
+- It inflates payload size.
+- It is easier to log accidentally.
+- It creates unnecessary memory pressure on mobile and backend sides.
+
+Why not upload-first for V1:
+
+- It adds a second API exchange before we have proven the end-to-end flow.
+- It is useful later for retained media, background retries, and large uploads, but it is extra surface area for the first slice.
+
+Upload-first remains a future option if retained media, background processing, or replayable analysis becomes a product requirement.
 
 ## Error Model
 
@@ -166,22 +164,18 @@ assist.memory_unavailable
 
 ## Media Upload
 
-If a general media API does not exist yet, Assist should define one before large payload turn requests:
+If a general media API does not exist yet, Assist can defer it until a later phase:
 
 ```txt
 POST /api/v1/media/uploads
 PUT signed upload URL
 ```
 
-Turn creation should reference uploaded media by id. Avoid base64 image payloads in normal turn requests because they increase memory pressure, logging risk, and retry cost.
+That model is a strong future fit for retained media, resumable upload, and background processing. It is not the preferred V1 turn contract.
 
-## Streaming Strategy
+## Streaming Compatibility
 
-V1 may return a complete response. Streaming should be designed now:
-
-```txt
-WS /api/v1/assist/sessions/{session_id}/stream
-```
+Streaming stays compatible with the turn/session model but is not part of the MVP contract.
 
 Events:
 

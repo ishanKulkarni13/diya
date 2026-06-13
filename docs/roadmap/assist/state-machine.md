@@ -75,7 +75,7 @@ Failed -> Preflight
 
 ## Cancellation
 
-Cancellation should be explicit and idempotent. Flutter should cancel local capture, STT, TTS, upload, and pending API calls when possible. FastAPI should expose a cancellation endpoint for long-running or streaming turns, and repeated cancellation requests should return the current terminal status instead of creating new side effects.
+Cancellation should be explicit and idempotent. Flutter should cancel local capture, STT, TTS, upload, and pending API calls when possible. FastAPI should expose a cancellation endpoint for long-running turns, and repeated cancellation requests should return the current terminal status instead of creating new side effects.
 
 ## Retry
 

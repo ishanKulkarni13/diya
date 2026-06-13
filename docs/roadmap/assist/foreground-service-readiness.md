@@ -102,7 +102,7 @@ Ports should be usable from UI or service contexts:
 ImageCapturePort
 SpeechInputPort
 SpeechOutputPort
-AssistRepository
+AssistApi
 AssistTriggerSource
 AssistRuntimeStore
 ConnectivityPolicyPort

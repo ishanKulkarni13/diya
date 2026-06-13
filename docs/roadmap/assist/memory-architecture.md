@@ -31,13 +31,17 @@ Purpose: stores user-specific stable facts and preferences that improve assistan
 Examples:
 
 ```txt
-preferred language
-preferred response verbosity
-known mobility aids
-home/work context if user opted in
-frequent routes if product-approved
-object/person labels if user opted in
-accessibility preferences
+preferred_language
+response_verbosity
+navigation_priority
+uses_smart_cane
+uses_smart_goggles
+memory_enabled
+known_mobility_aids
+home_work_context
+frequent_routes
+object_person_labels
+accessibility_preferences
 ```
 
 Owner: FastAPI.
@@ -45,6 +49,12 @@ Owner: FastAPI.
 Flutter role: collect explicit user preferences and consent decisions.
 
 Persistence: durable, user-editable, and deletable.
+
+UserProfileMemory is different from conversation history and memory summaries:
+
+- Conversation history records what happened turn by turn.
+- Memory summaries compress older conversation history into a bounded recall layer.
+- UserProfileMemory stores stable user preferences and long-lived settings that should influence future turns even when the original conversation is gone.
 
 ### MemorySummary
 
@@ -73,6 +83,7 @@ Persistence: persist status and timestamps. Flutter active session id is cacheab
 - local speech/capture state
 - explicit user preference inputs before sync
 - media handles and upload references
+- transient consent capture before backend sync
 
 Flutter should not store long-term user memory, full prompt history, provider secrets, or durable memory summaries.
 

@@ -57,7 +57,7 @@ Domain objects must not depend on Flutter widgets, Dio, camera plugins, speech p
 Responsibilities:
 
 - `AssistApi`
-- `HttpAssistRepository`
+- `HttpAssistApi`
 - phone camera capture adapter
 - goggle camera capture adapter
 - Flutter TTS adapter
@@ -76,7 +76,7 @@ assistControllerProvider
 assistPipelineProvider
 assistPolicyEngineProvider
 assistTriggerNormalizerProvider
-assistRepositoryProvider
+assistApiProvider
 imageCapturePortProvider
 speechInputPortProvider
 speechOutputPortProvider
@@ -142,6 +142,7 @@ Assist should not require route changes for core execution. The home screen can 
 - `hardware_providers.dart` already exposes device manager, event bus, event router, and arbitration.
 - `SosIngressService` already listens to resolved hardware events for safety workflows.
 - `ApiClient`, `AuthApi`, and `SafetyApi` establish the backend adapter pattern.
+- `AssistApi` should follow the same pattern as the existing network APIs.
 
 Assist should add parallel providers and APIs without changing safety ownership.
 
@@ -152,7 +153,7 @@ Assist should be testable without camera, microphone, TTS, real devices, or Gemi
 - fake image capture
 - fake speech input
 - fake speech output
-- fake Assist repository
+- fake Assist API
 - fake trigger source
 - fake policy engine clock
 
