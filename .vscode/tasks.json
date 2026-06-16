@@ -1,0 +1,99 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "🐳 Infrastructure",
+            "type": "shell",
+            "command": "docker compose up --build -d",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": true,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true,
+                "focus": false
+            }
+        },
+        {
+            "label": "🚀 Backend API",
+            "type": "shell",
+            "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+            "options": {
+                "cwd": "${workspaceFolder}/backend/api"
+            },
+            "isBackground": true,
+            "presentation": {
+                "reveal": true,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true,
+                "focus": false
+            }
+        },
+        {
+            "label": "👓 Simulator",
+            "type": "shell",
+            "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 9001 --reload",
+            "options": {
+                "cwd": "${workspaceFolder}/hardware/smart-goggles/simulator"
+            },
+            "isBackground": true,
+            "presentation": {
+                "reveal": true,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true,
+                "focus": false
+            }
+        },
+        {
+            "label": "📱 Flutter",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/infra/scripts/run-flutter-dev.ps1"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/apps/flutter"
+            },
+            "presentation": {
+                "reveal": true,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true,
+                "focus": false
+            }
+        },
+        {
+            "label": "🌿 Git",
+            "type": "shell",
+            "command": "git branch --show-current; echo ''; git status --short; echo ''; powershell",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": true,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true,
+                "focus": false
+            }
+        },
+        {
+            "label": "🚀 Start Everything",
+            "dependsOn": [
+                "🐳 Infrastructure",
+                "🚀 Backend API",
+                "👓 Simulator",
+                "📱 Flutter",
+                "🌿 Git"
+            ],
+            "dependsOrder": "parallel"
+        }
+    ]
+}
