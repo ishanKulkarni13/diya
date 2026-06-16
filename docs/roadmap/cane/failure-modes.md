@@ -10,6 +10,8 @@ The goal is not to avoid every failure. The goal is to fail visibly, recover aut
 - Cane monitoring is always-on after pairing.
 - The first implementation does not implement the native Android foreground service layer.
 - All Flutter cane code must still be foreground-service-compatible so BLE ownership can move behind a foreground service later.
+- Button actions are configurable in Flutter code and must not be hardcoded into BLE parsing.
+- Ultrasonic danger detection happens on the cane first; the app receives obstacle events plus optional low-rate telemetry.
 
 ## Failure Handling Principles
 
@@ -42,6 +44,9 @@ The goal is not to avoid every failure. The goal is to fail visibly, recover aut
 | Packet | Malformed packet length | Publish parser error, keep connection alive | `degraded` if repeated | `packet_malformed` |
 | Packet | Duplicate sequence | Drop duplicate without re-emitting event | unchanged | `packet_duplicate` |
 | Packet | Unsupported protocol version | Mark incompatible or degraded based on capability response | `failed` or `degraded` | `protocol_unsupported` |
+| Gesture mapping | Button gesture has no mapped action | Publish raw gesture for debug, do not crash | unchanged | `gesture_unmapped` |
+| Obstacle detection | Cane sends danger event | Route immediately; do not wait for raw distance stream | `ready` | `obstacle_detected` |
+| Obstacle detection | Raw distance telemetry missing | Keep safety events working; mark telemetry stale | `ready` or `degraded` | `distance_telemetry_stale` |
 | Heartbeat | Heartbeat missing once | Keep connected, mark stale diagnostics | `ready` | `heartbeat_late` |
 | Heartbeat | Heartbeat missing past timeout | Mark degraded and attempt recovery | `degraded` | `heartbeat_timeout` |
 | Battery | Battery packet invalid | Ignore packet and log parser error | unchanged | `battery_packet_invalid` |
@@ -95,10 +100,12 @@ The parser must be defensive:
 
 - return typed parse results instead of throwing from stream handlers
 - preserve raw packet bytes in debug logs when practical
-- validate packet length before reading indexes
+- validate JSON shape and required fields before mapping
 - validate button id and press type before creating `ButtonPressEvent`
 - dedupe repeated sequence numbers per packet type
-- treat Button 3 double press as critical/SOS
+- convert button gestures through a configurable action map
+- treat mapped SOS actions as critical regardless of physical button assignment
+- treat obstacle events as already-decided cane-side detections
 - do not let malformed telemetry block later button events
 
 ## Command Safety Rules
@@ -157,7 +164,8 @@ Unit tests:
 - unknown packet type is ignored with error result
 - duplicate sequence is dropped
 - all six button combinations parse correctly
-- Button 3 double maps to SOS priority
+- mapped SOS action receives critical priority
+- obstacle event does not wait for raw distance telemetry
 - haptic command refuses disconnected writes
 - heartbeat timeout moves coordinator to degraded/reconnect behavior
 

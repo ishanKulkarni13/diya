@@ -88,64 +88,65 @@ apps/flutter/lib/core/hardware/infrastructure/protocols/smart_cane_protocol.dart
 
 Firmware must use the same UUIDs.
 
+The protocol should start with UTF-8 JSON payloads because it is easier to build, inspect, test, and debug than a custom binary format. The payloads are small enough for the cane's first event set. A compact binary protocol can be introduced later only if profiling proves JSON is too large or too slow.
+
 ## Packet Format
 
-Use small binary packets with a common header.
+Use one JSON object per BLE notification or command write.
 
-```text
-[type, payload..., sequence]
+```json
+{"v":1,"t":"button","button":1,"press":"single","seq":42}
 ```
 
-`sequence` is a rolling `uint8` counter used for duplicate protection. If the firmware cannot include sequence in the first version, Flutter should still support it as optional but log that dedupe is degraded.
+Required common fields:
+
+- `v`: protocol version
+- `t`: event or command type
+- `seq`: rolling sequence number for dedupe where available
+
+`seq` is used for duplicate protection. If the firmware cannot include sequence in the first version, Flutter should still support it as optional but log that dedupe is degraded.
 
 ### Packet Types From Cane To App
 
 | Type | Name | Payload |
 | --- | --- | --- |
-| `0x10` | Button event | `[button_id, press_type, sequence]` |
-| `0x20` | Ultrasonic telemetry | `[distance_low, distance_high, detected, sequence]` |
-| `0x21` | Battery telemetry | `[battery_percent, sequence]` |
-| `0x22` | Heartbeat | `[status, sequence]` |
-| `0x40` | Error | `[error_code, sequence]` |
+| `button` | Button gesture | `{ "button": 1..3, "press": "single" | "double" }` |
+| `obstacle` | Cane-side obstacle detection | `{ "distance_cm": 84.5, "level": "warning" | "danger" }` |
+| `distance` | Low-rate debug telemetry | `{ "distance_cm": 84.5 }` |
+| `battery` | Battery telemetry | `{ "battery_percent": 0..100 }` |
+| `heartbeat` | Health heartbeat | `{ "status": "ok" | "degraded" }` |
+| `error` | Firmware/device error | `{ "code": "...", "message": "..." }` |
 
 ### Commands From App To Cane
 
 | Type | Name | Payload |
 | --- | --- | --- |
-| `0x30` | Haptic | `[duration_low, duration_high]` |
-| `0x31` | Status feedback | `[mode, duration_low, duration_high]` |
+| `haptic` | Haptic feedback | `{ "duration_ms": 500 }` |
+| `status_feedback` | LED/buzzer/status feedback | `{ "mode": "ok" | "warning" | "error", "duration_ms": 500 }` |
 
-Use little-endian `uint16` for duration and distance values.
+See [protocol-spec.md](protocol-spec.md) for the full contract.
 
 ## Button Mapping
 
-BLE values:
+BLE packets report physical gestures only:
 
 ```text
-button_id:
-  0x01 = button 1
-  0x02 = button 2
-  0x03 = button 3
-
-press_type:
-  0x01 = single
-  0x02 = double
+button: 1, 2, or 3
+press: single or double
 ```
 
-Flutter mapping:
+Flutter then maps gestures to app actions through a configurable table:
 
-| BLE Button | BLE Press | Flutter Event |
-| --- | --- | --- |
-| `0x01` | `0x01` | `ButtonPressEvent(button1, single)` |
-| `0x01` | `0x02` | `ButtonPressEvent(button1, double)` |
-| `0x02` | `0x01` | `ButtonPressEvent(button2, single)` |
-| `0x02` | `0x02` | `ButtonPressEvent(button2, double)` |
-| `0x03` | `0x01` | `ButtonPressEvent(button3, single)` |
-| `0x03` | `0x02` | `ButtonPressEvent(button3, double)` |
+| Gesture | Default Action |
+| --- | --- |
+| `button_1_single` | Configurable |
+| `button_1_double` | Configurable |
+| `button_2_single` | Configurable |
+| `button_2_double` | Configurable |
+| `button_3_single` | Configurable |
+| `button_3_double` | Configurable |
 
-`button3 + double` is the default SOS trigger and should bypass event buffering.
-
-This requires expanding `ButtonId` from two values to three values.
+This requires expanding `ButtonId` from two values to three values. SOS should be one possible mapped action, not a hardcoded BLE packet.
 
 ## State Model
 
@@ -204,8 +205,9 @@ The first implementation can run in normal Flutter process memory. Later, Androi
 - Expand `ButtonId` to include `button3`.
 - Update `SmartCaneAdapter` to use parser instead of raw byte checks.
 - Map all six button combinations.
-- Parse ultrasonic, battery, heartbeat, and error packets.
-- Send haptic command with two-byte duration.
+- Add a configurable gesture-to-action mapping layer.
+- Parse obstacle, low-rate distance telemetry, battery, heartbeat, and error packets.
+- Send haptic command as a JSON command.
 - Add parser and adapter tests.
 
 ### Phase 2: BLE Transport
@@ -241,10 +243,10 @@ Unit tests:
 
 - parser rejects empty and malformed packets
 - parser handles all six button combinations
-- parser handles ultrasonic little-endian distance
+- parser handles cane-side obstacle events and low-rate distance telemetry
 - parser handles battery bounds
 - adapter publishes expected `HardwareEvent`s
-- haptic command encodes duration as little-endian `uint16`
+- haptic command encodes duration as JSON
 - duplicate sequence packets are ignored
 
 Integration/manual tests:
@@ -254,14 +256,13 @@ Integration/manual tests:
 - foreground to background does not crash transport
 - reconnect backoff is bounded and visible
 - haptic command reaches firmware
-- Button 3 double press reaches resolved event stream as critical/SOS
+- mapped SOS action reaches resolved event stream as critical/SOS
 
 Failure-mode coverage is tracked in [failure-modes.md](failure-modes.md).
 
 ## Open Decisions
 
 - Final BLE UUID values.
-- Whether Button 3 double press is final SOS gesture.
 - Whether firmware can include packet sequence from the first version.
 - Which Flutter BLE package to standardize on.
 - Whether the first branch includes native Android foreground service or only the service-ready boundary.

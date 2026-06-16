@@ -38,16 +38,34 @@ The Smart Cane must support:
 
 The cane has three buttons. Each button supports single press and double press.
 
-| Button | Press | Intended Meaning | Event Priority |
-| --- | --- | --- | --- |
-| Button 1 | Single | Assist / describe surroundings | High |
-| Button 1 | Double | Repeat last response or quick assist mode | Medium |
-| Button 2 | Single | Navigation or obstacle hint | Medium |
-| Button 2 | Double | Share location or status check | Medium |
-| Button 3 | Single | Cane status / haptic confirmation | Low |
-| Button 3 | Double | SOS emergency trigger | Critical |
+Button actions must be configurable in Flutter code. The BLE layer should only report the physical gesture. Product behavior such as assist, repeat, navigation hint, status check, or SOS should be assigned through a mapping table that can change without touching BLE transport or packet parsing.
 
-SOS should be double press on Button 3 by default to reduce accidental emergency triggers. If product feedback says otherwise, this mapping can change without changing the BLE packet format.
+| Button | Press | Stable Hardware Gesture | Default App Action |
+| --- | --- | --- | --- |
+| Button 1 | Single | `button_1_single` | Configurable |
+| Button 1 | Double | `button_1_double` | Configurable |
+| Button 2 | Single | `button_2_single` | Configurable |
+| Button 2 | Double | `button_2_double` | Configurable |
+| Button 3 | Single | `button_3_single` | Configurable |
+| Button 3 | Double | `button_3_double` | Configurable |
+
+This keeps the cane firmware and parser stable while product behavior evolves. SOS should be a configurable action, not a hardcoded packet type.
+
+## Ultrasonic Detection Model
+
+Ultrasonic obstacle detection should be decided on the cane first.
+
+The cane should not stream high-rate raw distance readings and wait for the app to decide whether danger exists. That creates avoidable latency and makes safety depend on BLE timing, app scheduling, and foreground/background state.
+
+The recommended model is:
+
+- cane firmware samples the ultrasonic sensor locally
+- cane firmware applies thresholding, smoothing, and debounce
+- cane sends an immediate obstacle event when danger is detected
+- app receives the event and routes it through the hardware event pipeline
+- app may also receive low-rate distance telemetry for debug/status UI
+
+This means the app can still show distance data, but safety-critical detection starts at the edge device.
 
 ## Connection Behavior
 
@@ -82,6 +100,13 @@ Foreground service responsibilities later:
 - publish connection and event state back to Flutter
 - stop cleanly when the user disables cane monitoring
 - expose visible notification state required by Android
+
+Platform notes:
+
+- Android BLE uses scan, connect, GATT service discovery, and characteristic transfer.
+- Android 12 and higher require runtime Bluetooth permissions such as `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`.
+- Future Android foreground service work should align with the `connectedDevice` foreground service type.
+- The first Flutter implementation should keep the foreground-service boundary clean without implementing the native service yet.
 
 ## Smart Goggle Inspiration
 
@@ -122,6 +147,8 @@ The cane implementation should include:
 - adapter tests for all six button actions
 
 For detailed failure handling, see [failure-modes.md](failure-modes.md).
+For the cane BLE/application protocol, see [protocol-spec.md](protocol-spec.md).
+For connection states and transitions, see [state-machine.md](state-machine.md).
 
 ## Non-Goals For First Pass
 
@@ -160,8 +187,8 @@ The first complete Smart Cane Flutter slice is done when:
 
 - a known cane auto-connects after app startup
 - all three buttons emit single and double press events
-- Button 3 double press emits the critical SOS event
-- ultrasonic and battery packets parse into typed events
+- button gestures map through configurable Flutter actions
+- cane-side obstacle and battery packets parse into typed events
 - the app can send haptic feedback to the cane
 - disconnect and reconnect behavior is visible in debug UI
 - parser and adapter tests cover the cane protocol
