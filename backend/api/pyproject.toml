@@ -26,6 +26,8 @@ dependencies = [
     # logging
     "python-json-logger>=4.1.0",
     "python-multipart>=0.0.32",
+    # ai providers
+    "google-genai>=1.0.0",
 ]
 
 [dependency-groups]

@@ -72,6 +72,15 @@ class AssistPipeline {
     } catch (e) {
       if (e is AppError) rethrow;
       throw AppError.network('Failed to analyze image: $e', code: 'assist.network_failed');
+    } finally {
+      // Clean up ephemeral image file to prevent disk cache buildup
+      try {
+        if (await imageFile.exists()) {
+          await imageFile.delete();
+        }
+      } catch (_) {
+        // Best-effort cleanup — do not fail the pipeline
+      }
     }
 
     // 4. Speech Output
