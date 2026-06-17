@@ -7,7 +7,7 @@ import '../../domain/models/hardware_event.dart';
 import '../../domain/capabilities/device_capability.dart';
 import '../manager/connection_coordinator.dart';
 import '../../domain/messaging/event_bus.dart';
-import '../../domain/models/cane_message_dto.dart';
+import '../models/cane_message_dto.dart';
 
 class _SmartCaneHapticCapability implements HapticCapability {
   final ConnectionCoordinator _coordinator;
