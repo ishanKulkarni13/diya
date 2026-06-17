@@ -11,7 +11,9 @@ import '../infrastructure/manager/adapter_factory.dart';
 import '../infrastructure/manager/backoff_strategy.dart';
 import '../infrastructure/manager/device_manager_impl.dart';
 import '../infrastructure/manager/shared_prefs_device_registry.dart';
+import '../domain/services/ble_permission_service.dart';
 import '../infrastructure/observability/hardware_logger.dart';
+import '../infrastructure/services/ble_permission_service_impl.dart';
 import '../infrastructure/services/debug_goggle_service.dart';
 import '../infrastructure/transports/device_discovery_server.dart';
 
@@ -51,6 +53,10 @@ final deviceDiscoveryServerProvider = Provider<DeviceDiscoveryServer>((ref) {
   // Server is started internally by DeviceManager when it initializes
   ref.onDispose(() => server.stop());
   return server;
+});
+
+final blePermissionServiceProvider = Provider<BlePermissionService>((ref) {
+  return BlePermissionServiceImpl();
 });
 
 // ──────────────────────────────────────────────────────────────
