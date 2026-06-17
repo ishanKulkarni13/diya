@@ -5,6 +5,7 @@ abstract class BaseDevice {
   String get id;
   String get name;
   HardwareConnectionState get state;
+  Stream<HardwareConnectionState> get stateStream;
 
   List<DeviceCapability> get capabilities;
 

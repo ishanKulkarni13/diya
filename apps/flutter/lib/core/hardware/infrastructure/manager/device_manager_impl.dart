@@ -6,48 +6,35 @@ import '../../domain/models/hardware_event.dart';
 import '../../domain/models/known_device.dart';
 import '../../domain/observability/hardware_log_event.dart';
 import '../observability/hardware_logger.dart';
-import 'backoff_strategy.dart';
 import '../../domain/messaging/event_bus.dart';
 import '../transports/device_discovery_server.dart';
+import '../services/ble_discovery_service.dart';
 import 'adapter_factory.dart';
-
-// Internal events for the DeviceManager state machine
-abstract class _ManagerEvent {}
-class _AttemptConnectEvent extends _ManagerEvent { final String deviceId; _AttemptConnectEvent(this.deviceId); }
-class _TransportFailedEvent extends _ManagerEvent { final String deviceId; _TransportFailedEvent(this.deviceId); }
-class _TransportConnectedEvent extends _ManagerEvent { final String deviceId; final BaseDevice device; _TransportConnectedEvent(this.deviceId, this.device); }
-class _DisconnectRequestedEvent extends _ManagerEvent { final String deviceId; _DisconnectRequestedEvent(this.deviceId); }
 
 class DeviceManagerImpl implements DeviceManager {
   final DeviceRegistry _registry;
-  final BackoffStrategy _backoffStrategy;
   final HardwareLogger _logger;
   final HardwareEventBus _eventBus;
   final AdapterFactory _adapterFactory;
   final DeviceDiscoveryServer _discoveryServer;
+  final BleDiscoveryService _bleDiscoveryService;
+  
   StreamSubscription? _discoverySubscription;
+  StreamSubscription? _bleDiscoverySubscription;
   StreamSubscription? _sensorEventSubscription;
 
   final Map<String, BaseDevice> _activeDevices = {};
+  final Map<String, StreamSubscription> _stateSubscriptions = {};
   final StreamController<List<BaseDevice>> _devicesController = StreamController.broadcast();
-
-  final Map<String, int> _reconnectionAttempts = {};
-  final Map<String, Timer> _reconnectionTimers = {};
-  
-  // Internal event bus for decoupled state machine
-  final _internalEvents = StreamController<_ManagerEvent>();
 
   DeviceManagerImpl(
     this._registry, 
-    this._backoffStrategy, 
     this._logger, 
     this._eventBus,
     this._adapterFactory,
     this._discoveryServer,
+    this._bleDiscoveryService,
   ) {
-    _internalEvents.stream.listen(_handleInternalEvent);
-    
-    // Auto-start discovery server
     _discoveryServer.start();
     _discoverySubscription = _discoveryServer.onDeviceRegistered.listen(_handleDiscoveryEvent);
     _sensorEventSubscription = _discoveryServer.onSensorEvent.listen(_handleSensorEvent);
@@ -58,6 +45,7 @@ class DeviceManagerImpl implements DeviceManager {
     final deviceTypeStr = data['device_type'] as String?;
     final sourceIp = data['source_ip'] as String?;
     final advertisedPort = data['port'] as int?;
+    final deviceName = data['device_name'] as String?;
 
     if (deviceId == null || deviceTypeStr == null) return;
 
@@ -65,20 +53,17 @@ class DeviceManagerImpl implements DeviceManager {
     
     final knownDevice = KnownDevice(
       deviceId: deviceId,
+      deviceName: deviceName,
       deviceType: type,
       lastKnownIp: sourceIp,
       lastKnownPort: advertisedPort,
       lastSeenTimestamp: DateTime.now(),
     );
 
-    // Save to registry
     await _registry.saveKnownDevice(knownDevice);
+    _logger.log(HardwareLogEvent(type: LogType.connect, deviceId: deviceId, message: "Discovered device, attempting connection..."));
     
-    _logger.log(HardwareLogEvent(type: LogType.connect, deviceId: deviceId, message: "Discovered via HTTP, attempting connection..."));
-    
-    // Trigger connection
-    _reconnectionAttempts[deviceId] = 0;
-    _triggerReconnection(deviceId);
+    _triggerConnection(deviceId);
   }
 
   void _handleSensorEvent(Map<String, dynamic> data) {
@@ -93,12 +78,6 @@ class DeviceManagerImpl implements DeviceManager {
     if (distanceCm == null) return;
 
     final detected = (data['detected'] as bool?) ?? true;
-
-    _logger.log(HardwareLogEvent(
-      type: LogType.stateTransition,
-      deviceId: deviceId,
-      message: 'Ultrasonic event: detected=$detected distance_cm=${distanceCm.toStringAsFixed(1)}',
-    ));
 
     _eventBus.publish(UltrasonicDetectionEvent(
       deviceId: deviceId,
@@ -117,96 +96,68 @@ class DeviceManagerImpl implements DeviceManager {
     final knownDevices = await _registry.getKnownDevices();
     for (final device in knownDevices) {
       _logger.log(HardwareLogEvent(type: LogType.connect, deviceId: device.deviceId, message: "Restoring known device"));
-      _triggerReconnection(device.deviceId);
+      _triggerConnection(device.deviceId);
     }
+    
+    _bleDiscoverySubscription?.cancel();
+    _bleDiscoverySubscription = _bleDiscoveryService.scan().listen(_handleDiscoveryEvent);
   }
 
   @override
-  Future<void> stopScan() async {}
+  Future<void> stopScan() async {
+    _bleDiscoverySubscription?.cancel();
+  }
 
   @override
   Future<void> disconnectDevice(String deviceId) async {
     await _registry.removeDevice(deviceId);
-    _internalEvents.add(_DisconnectRequestedEvent(deviceId));
+    final adapter = _activeDevices.remove(deviceId);
+    _stateSubscriptions.remove(deviceId)?.cancel();
+    adapter?.disconnect();
+    _logger.log(HardwareLogEvent(type: LogType.disconnect, deviceId: deviceId, message: "Manual disconnect"));
+    _emitDevices();
   }
 
   @override
   Future<void> retryConnection(String deviceId) async {
-    _reconnectionAttempts[deviceId] = 0;
-    _triggerReconnection(deviceId);
+    _triggerConnection(deviceId);
   }
 
-  void _triggerReconnection(String deviceId) {
-    _reconnectionTimers[deviceId]?.cancel();
-    final attempt = _reconnectionAttempts[deviceId] ?? 0;
-    
-    if (attempt == 0) {
-      _internalEvents.add(_AttemptConnectEvent(deviceId));
-    } else {
-      final delayMs = _backoffStrategy.calculateDelay(attempt);
-      _logger.log(HardwareLogEvent(
-        type: LogType.reconnectAttempt,
-        deviceId: deviceId,
-        attempt: attempt,
-        delayMs: delayMs,
-      ));
-      
-      _reconnectionTimers[deviceId] = Timer(Duration(milliseconds: delayMs), () {
-        _internalEvents.add(_AttemptConnectEvent(deviceId));
-      });
+  Future<void> _triggerConnection(String deviceId) async {
+    if (_activeDevices.containsKey(deviceId)) {
+       final allKnown = await _registry.getKnownDevices();
+       final knownDevice = allKnown.firstWhere((d) => d.deviceId == deviceId);
+       final address = knownDevice.deviceType == DeviceType.goggle ? _buildGoggleAddress(knownDevice) : knownDevice.deviceId;
+       _activeDevices[deviceId]?.connect(address);
+       return;
     }
-  }
 
-  Future<void> _handleInternalEvent(_ManagerEvent event) async {
-    if (event is _AttemptConnectEvent) {
-      final attempt = (_reconnectionAttempts[event.deviceId] ?? 0) + 1;
-      _reconnectionAttempts[event.deviceId] = attempt;
-
-      try {
-        final allKnown = await _registry.getKnownDevices();
-        final knownDevice = allKnown.where((d) => d.deviceId == event.deviceId).firstOrNull;
-        
-        if (knownDevice == null) {
-          throw Exception("Device ${event.deviceId} not found in registry");
-        }
-
-        final adapter = _adapterFactory.createAdapter(
-          deviceId: knownDevice.deviceId,
-          deviceType: knownDevice.deviceType.name,
-        );
-
-        // Add to active devices immediately so the UI shows it (e.g. as connecting/idle)
-        _activeDevices[event.deviceId] = adapter;
-        _emitDevices();
-
-        // Determine the address to connect to (IP for goggle, Mac for BLE cane)
-        final address = knownDevice.deviceType == DeviceType.goggle
-          ? _buildGoggleAddress(knownDevice)
-          : knownDevice.deviceId;
-
-        // Since adapter implements BaseDevice, we can directly connect
-        await adapter.connect(address);
-
-        _internalEvents.add(_TransportConnectedEvent(event.deviceId, adapter));
-      } catch (e) {
-        _logger.log(HardwareLogEvent(type: LogType.error, deviceId: event.deviceId, message: "Connect failed: $e"));
-        _internalEvents.add(_TransportFailedEvent(event.deviceId));
+    try {
+      final allKnown = await _registry.getKnownDevices();
+      final knownDevice = allKnown.where((d) => d.deviceId == deviceId).firstOrNull;
+      
+      if (knownDevice == null) {
+        throw Exception("Device $deviceId not found in registry");
       }
-    } else if (event is _TransportFailedEvent) {
-      // Do NOT remove the device from active devices, so it remains visible in the UI with a 'failed' state.
+
+      final adapter = _adapterFactory.createAdapter(
+        deviceId: knownDevice.deviceId,
+        deviceType: knownDevice.deviceType.name,
+      );
+
+      _activeDevices[deviceId] = adapter;
+      _stateSubscriptions[deviceId] = adapter.stateStream.listen((state) {
+         _emitDevices();
+      });
+
+      final address = knownDevice.deviceType == DeviceType.goggle
+        ? _buildGoggleAddress(knownDevice)
+        : knownDevice.deviceId;
+
+      await adapter.connect(address);
       _emitDevices();
-      _triggerReconnection(event.deviceId);
-    } else if (event is _TransportConnectedEvent) {
-      _reconnectionAttempts[event.deviceId] = 0;
-      // It's already in activeDevices, but we can assign it again just to be safe.
-      _activeDevices[event.deviceId] = event.device;
-      _logger.log(HardwareLogEvent(type: LogType.connect, deviceId: event.deviceId, message: "Connected successfully"));
-      _emitDevices();
-    } else if (event is _DisconnectRequestedEvent) {
-      _reconnectionTimers[event.deviceId]?.cancel();
-      final adapter = _activeDevices.remove(event.deviceId);
-      adapter?.disconnect();
-      _logger.log(HardwareLogEvent(type: LogType.disconnect, deviceId: event.deviceId, message: "Manual disconnect"));
+    } catch (e) {
+      _logger.log(HardwareLogEvent(type: LogType.error, deviceId: deviceId, message: "Connect failed: $e"));
       _emitDevices();
     }
   }
@@ -222,13 +173,13 @@ class DeviceManagerImpl implements DeviceManager {
   }
   
   void dispose() {
-    for (final timer in _reconnectionTimers.values) {
-      timer.cancel();
-    }
-    _reconnectionTimers.clear();
     _discoverySubscription?.cancel();
     _sensorEventSubscription?.cancel();
-    _internalEvents.close();
+    _bleDiscoverySubscription?.cancel();
+    for (final sub in _stateSubscriptions.values) {
+      sub.cancel();
+    }
+    _stateSubscriptions.clear();
     _devicesController.close();
   }
 }

@@ -16,6 +16,7 @@ import '../infrastructure/observability/hardware_logger.dart';
 import '../infrastructure/services/ble_permission_service_impl.dart';
 import '../infrastructure/services/debug_goggle_service.dart';
 import '../infrastructure/transports/device_discovery_server.dart';
+import '../infrastructure/services/ble_discovery_service.dart';
 
 // ──────────────────────────────────────────────────────────────
 // External Dependencies (must be overridden in ProviderScope)
@@ -59,6 +60,10 @@ final blePermissionServiceProvider = Provider<BlePermissionService>((ref) {
   return BlePermissionServiceImpl();
 });
 
+final bleDiscoveryServiceProvider = Provider<BleDiscoveryService>((ref) {
+  return BleDiscoveryService('1b050001-c852-4752-b883-fa4c0342ab01');
+});
+
 // ──────────────────────────────────────────────────────────────
 // Event Pipeline: EventBus → EventRouter (with Arbitration)
 // ──────────────────────────────────────────────────────────────
@@ -84,7 +89,8 @@ final eventRouterProvider = Provider<EventRouter>((ref) {
 final adapterFactoryProvider = Provider<AdapterFactory>((ref) {
   final dio = ref.watch(dioProvider);
   final eventBus = ref.watch(hardwareEventBusProvider);
-  return AdapterFactory(dio, eventBus);
+  final backoff = ref.watch(backoffStrategyProvider);
+  return AdapterFactory(dio, eventBus, backoff);
 });
 
 final debugGoggleServiceProvider = Provider<DebugGoggleService>((ref) {
@@ -101,19 +107,19 @@ final debugGoggleServiceProvider = Provider<DebugGoggleService>((ref) {
 
 final deviceManagerProvider = Provider<DeviceManager>((ref) {
   final registry = ref.watch(deviceRegistryProvider);
-  final backoffStrategy = ref.watch(backoffStrategyProvider);
   final logger = ref.watch(hardwareLoggerProvider);
   final eventBus = ref.watch(hardwareEventBusProvider);
   final adapterFactory = ref.watch(adapterFactoryProvider);
   final discoveryServer = ref.watch(deviceDiscoveryServerProvider);
+  final bleDiscoveryService = ref.watch(bleDiscoveryServiceProvider);
   
   final manager = DeviceManagerImpl(
     registry, 
-    backoffStrategy, 
     logger, 
     eventBus,
     adapterFactory,
     discoveryServer,
+    bleDiscoveryService,
   );
   ref.onDispose(() => manager.dispose());
   return manager;
