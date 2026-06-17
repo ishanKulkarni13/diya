@@ -57,7 +57,7 @@ class BleTransportImpl implements DeviceTransport {
         }
       });
 
-      await _device!.connect(timeout: const Duration(seconds: 10));
+      await _device!.connect(license: License.nonprofit);
 
       try {
         await _device!.requestMtu(512);

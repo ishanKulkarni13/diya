@@ -11,7 +11,6 @@ import 'package:diya_flutter/features/safety/providers/safety_controller.dart';
 import 'package:diya_flutter/features/safety/services/safety_service.dart';
 
 import 'dart:async';
-import 'dart:async';
 import 'package:diya_flutter/core/hardware/domain/messaging/arbitration_result.dart';
 import 'package:diya_flutter/core/hardware/domain/messaging/event_router.dart';
 import 'package:diya_flutter/core/hardware/domain/models/hardware_event.dart';
@@ -126,7 +125,7 @@ void main() {
         safetyApi: FakeSafetyApi(),
         queueRepository: queueRepository,
       );
-      final controller = SafetyController(service, queueRepository, permissionManager, FakeEventRouter(), FakeSessionRepository());
+      final controller = SafetyController(service, queueRepository, permissionManager);
 
       await controller.triggerSOS(accessToken: 'token', location: 'loc');
 
@@ -143,7 +142,7 @@ void main() {
         safetyApi: FakeSafetyApi(),
         queueRepository: queueRepository,
       );
-      final controller = SafetyController(service, queueRepository, permissionManager, FakeEventRouter(), FakeSessionRepository());
+      final controller = SafetyController(service, queueRepository, permissionManager);
 
       await controller.triggerSOS(accessToken: 'token', location: 'loc');
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -182,9 +181,9 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
           // Ignore any write failures; keep diagPath as unknown.
         }
 
-        final msg = 'Invalid image data: ${e} (diagnostic: $diagPath)';
+        final msg = 'Invalid image data: $e (diagnostic: $diagPath)';
         debugPrint('capture.decode.failed: $msg');
-        debugPrint('capture.decode.failed: len=${bytes.length} hex=${hexPrefix} ascii=${asciiPrefix}');
+        debugPrint('capture.decode.failed: len=${bytes.length} hex=$hexPrefix ascii=$asciiPrefix');
         if (mounted) {
           setState(() {
             _captureError = msg;

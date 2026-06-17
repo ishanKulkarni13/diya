@@ -23,7 +23,7 @@ class FakeSessionRepository implements SessionRepository {
 }
 
 class FakeAuthApi extends AuthApi {
-  FakeAuthApi() : super(Dio());
+  FakeAuthApi() : super(dio: Dio());
 
   bool throwOnMe = false;
   bool refreshSucceeds = true;
@@ -40,8 +40,8 @@ class FakeAuthApi extends AuthApi {
       userId: session.userId,
       email: session.email,
       roles: session.roles,
-      accessToken: session.accessToken + '-refreshed',
-      refreshToken: session.refreshToken + '-refreshed',
+      accessToken: '${session.accessToken}-refreshed',
+      refreshToken: '${session.refreshToken}-refreshed',
       sessionId: session.sessionId,
       tokenVersion: session.tokenVersion + 1,
     );
