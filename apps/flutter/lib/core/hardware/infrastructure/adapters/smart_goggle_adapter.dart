@@ -138,6 +138,7 @@ class SmartGoggleAdapter implements BaseDevice {
   final HardwareEventBus _eventBus;
 
   HardwareConnectionState _state = HardwareConnectionState.idle;
+  final StreamController<HardwareConnectionState> _stateController = StreamController.broadcast();
   late final List<DeviceCapability> _capabilities;
 
   StreamSubscription? _stateSubscription;
@@ -156,6 +157,7 @@ class SmartGoggleAdapter implements BaseDevice {
       } else if (transportState == TransportState.error) {
         _state = HardwareConnectionState.failed;
       }
+      _stateController.add(_state);
     });
   }
 
@@ -179,6 +181,9 @@ class SmartGoggleAdapter implements BaseDevice {
   HardwareConnectionState get state => _state;
 
   @override
+  Stream<HardwareConnectionState> get stateStream => _stateController.stream;
+
+  @override
   List<DeviceCapability> get capabilities => _capabilities;
 
   @override
@@ -191,5 +196,6 @@ class SmartGoggleAdapter implements BaseDevice {
 
   void dispose() {
     _stateSubscription?.cancel();
+    _stateController.close();
   }
 }

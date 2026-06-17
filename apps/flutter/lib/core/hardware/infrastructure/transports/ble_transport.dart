@@ -4,8 +4,9 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../domain/transports/device_transport.dart';
 
 /// GATT Contract:
-/// - Service UUID: 0000ffe0-0000-1000-8000-00805f9b34fb
-/// - RX/TX Characteristic UUID: 0000ffe1-0000-1000-8000-00805f9b34fb
+/// - Service UUID: 1b050001-c852-4752-b883-fa4c0342ab01
+/// - TX Characteristic UUID: 1b050002-c852-4752-b883-fa4c0342ab01 (App writes to Cane)
+/// - RX Characteristic UUID: 1b050003-c852-4752-b883-fa4c0342ab01 (Cane notifies App)
 /// - MTU Expectations: MTU request of 512 is attempted upon connection.
 /// - Notification Requirements: Client must subscribe to characteristic notifications.
 class BleTransportImpl implements DeviceTransport {
@@ -14,12 +15,14 @@ class BleTransportImpl implements DeviceTransport {
 
   TransportState _currentState = TransportState.disconnected;
   BluetoothDevice? _device;
-  BluetoothCharacteristic? _rxTxCharacteristic;
+  BluetoothCharacteristic? _txCharacteristic;
+  BluetoothCharacteristic? _rxCharacteristic;
   StreamSubscription? _connectionSub;
   StreamSubscription? _characteristicSub;
 
-  static const String serviceUuid = "0000ffe0-0000-1000-8000-00805f9b34fb";
-  static const String charUuid = "0000ffe1-0000-1000-8000-00805f9b34fb";
+  static const String serviceUuid = "1b050001-c852-4752-b883-fa4c0342ab01";
+  static const String txCharUuid = "1b050002-c852-4752-b883-fa4c0342ab01";
+  static const String rxCharUuid = "1b050003-c852-4752-b883-fa4c0342ab01";
 
   @override
   Stream<TransportState> get state => _stateController.stream;
@@ -76,19 +79,20 @@ class BleTransportImpl implements DeviceTransport {
       }
 
       for (var c in targetService.characteristics) {
-        if (c.uuid.toString() == charUuid) {
-          _rxTxCharacteristic = c;
-          break;
+        if (c.uuid.toString() == txCharUuid) {
+          _txCharacteristic = c;
+        } else if (c.uuid.toString() == rxCharUuid) {
+          _rxCharacteristic = c;
         }
       }
 
-      if (_rxTxCharacteristic == null) {
-        throw Exception('Required GATT Characteristic $charUuid not found.');
+      if (_txCharacteristic == null || _rxCharacteristic == null) {
+        throw Exception('Required GATT Characteristics (TX/RX) not found.');
       }
 
-      await _rxTxCharacteristic!.setNotifyValue(true);
+      await _rxCharacteristic!.setNotifyValue(true);
       _characteristicSub?.cancel();
-      _characteristicSub = _rxTxCharacteristic!.lastValueStream.listen((value) {
+      _characteristicSub = _rxCharacteristic!.lastValueStream.listen((value) {
         if (value.isNotEmpty) {
           _incomingController.add(Uint8List.fromList(value));
         }
@@ -111,10 +115,10 @@ class BleTransportImpl implements DeviceTransport {
 
   @override
   Future<void> send(Uint8List data) async {
-    if (_currentState != TransportState.connected || _rxTxCharacteristic == null) {
+    if (_currentState != TransportState.connected || _txCharacteristic == null) {
       throw Exception('Cannot send data while disconnected');
     }
-    await _rxTxCharacteristic!.write(data, withoutResponse: true);
+    await _txCharacteristic!.write(data, withoutResponse: true);
   }
 
   @override
@@ -143,7 +147,8 @@ class BleTransportImpl implements DeviceTransport {
     _characteristicSub = null;
     _connectionSub?.cancel();
     _connectionSub = null;
-    _rxTxCharacteristic = null;
+    _txCharacteristic = null;
+    _rxCharacteristic = null;
   }
 
   void _updateState(TransportState newState) {
