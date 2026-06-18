@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'app/second_eye_app.dart';
 import 'core/config/app_config.dart';
-import 'core/hardware/providers/hardware_providers.dart';
+import 'core/runtime/diya_runtime.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,13 +16,13 @@ void main() async {
 
   AppConfig.validate();
 
-  final sharedPrefs = await SharedPreferences.getInstance();
+  // Boot the underlying headless runtime
+  final runtime = DiyaRuntime();
+  await runtime.boot();
   
   runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
-      ],
+    UncontrolledProviderScope(
+      container: runtime.container,
       child: const SecondEyeApp(),
     ),
   );
