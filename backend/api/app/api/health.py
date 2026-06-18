@@ -49,7 +49,11 @@ async def ready(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     if response["status"] == "not_ready":
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=response
+            detail={
+                "code": "HEALTH.NOT_READY",
+                "message": "Readiness checks failed",
+                "details": response
+            }
         )
         
     return response
