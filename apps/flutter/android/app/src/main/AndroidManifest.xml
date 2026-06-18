@@ -13,6 +13,7 @@
     <application
         android:label="diya_flutter"
         android:name="${applicationName}"
+        android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
