@@ -11,8 +11,10 @@ from app.api.router import api_router
 from app.config.logging import setup_logging
 from app.config.settings import settings
 from app.db.session import async_session_factory
+from app.api.middleware import RequestLoggingMiddleware
 from app.modules.auth.repository import SqlAlchemyAuthRepository
 from app.modules.auth.service import AuthService
+from app.api.providers import provide_auth
 
 setup_logging()
 
@@ -30,6 +32,7 @@ async def lifespan(app: FastAPI):
     
     # Seed demo users if they don't exist
     async with async_session_factory() as db:
+        # Re-use the provider creation logic manually since Depends() is only for endpoints
         repository = SqlAlchemyAuthRepository(db)
         service = AuthService(repository)
         await service.seed_demo_users()
@@ -41,6 +44,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app.app_name, lifespan=lifespan)
+app.add_middleware(RequestLoggingMiddleware)
+
 register_error_handlers(app)
 app.include_router(api_router)
 
@@ -49,8 +54,3 @@ app.include_router(api_router)
 def root() -> dict[str, str]:
     logger.info("Root endpoint called")
     return {"message": settings.app.app_name}
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": settings.app.app_name}

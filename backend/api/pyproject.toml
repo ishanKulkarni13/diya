@@ -28,6 +28,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     # ai providers
     "google-genai>=1.0.0",
+    "tenacity>=9.1.4",
 ]
 
 [dependency-groups]
@@ -36,3 +37,6 @@ dev = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.25.3",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

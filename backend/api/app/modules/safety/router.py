@@ -11,16 +11,11 @@ from app.config.security import decode_access_token
 from app.db.session import get_db
 from app.schemas import SafetyEventCreateRequest
 
+from app.api.providers import provide_safety
 from .repository import SqlAlchemySafetyEventRepository
 from .service import SafetyEventService
 
 router = APIRouter(prefix="/safety", tags=["safety"])
-
-
-async def get_safety_service(db: AsyncSession = Depends(get_db)) -> SafetyEventService:
-    """Dependency for getting the SafetyEventService with the current DB session."""
-    repository = SqlAlchemySafetyEventRepository(db)
-    return SafetyEventService(repository)
 
 
 @router.post("/events")
@@ -28,7 +23,7 @@ async def create_safety_event(
     request: SafetyEventCreateRequest,
     token: str = Depends(get_bearer_token),
     idempotency_key: str | None = Header(default=None),
-    safety_service: SafetyEventService = Depends(get_safety_service),
+    safety_service: SafetyEventService = Depends(provide_safety),
 ) -> dict:
     """
     Create a safety event (e.g., SOS).
