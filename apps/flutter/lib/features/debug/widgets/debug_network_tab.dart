@@ -98,8 +98,7 @@ class _DebugNetworkTabState extends ConsumerState<DebugNetworkTab> {
 
     try {
       final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 5)));
-      final uri = Uri.parse(AppConfig.apiBaseUrl);
-      final healthUrl = '${uri.scheme}://${uri.host}:${uri.port}/health';
+      final healthUrl = '${AppConfig.apiBaseUrl}/health';
       
       final startTime = DateTime.now();
       final response = await dio.get(healthUrl);
