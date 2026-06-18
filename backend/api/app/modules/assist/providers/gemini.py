@@ -13,7 +13,27 @@ from typing import Protocol
 
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
 from pydantic import BaseModel, Field
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+)
+
+from ..exceptions import (
+    ProviderError,
+    AuthenticationError,
+    QuotaExceededError,
+    RateLimitError,
+    TemporaryUnavailableError,
+    TimeoutError,
+    SafetyBlockedError,
+    MalformedResponseError,
+    UnknownProviderError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +88,47 @@ class GeminiProvider:
 
     def __init__(self, api_key: str, model_name: str) -> None:
         self._model_name = model_name
-        self._client = genai.Client(api_key=api_key)
+        self._client = genai.Client(
+            api_key=api_key,
+            http_options={"timeout": 10.0}
+        )
+
+    @retry(
+        retry=retry_if_exception_type((RateLimitError, TemporaryUnavailableError, TimeoutError)),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(3),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    def _execute_with_retry(self, prompt, image_part):
+        try:
+            return self._client.models.generate_content(
+                model=self._model_name,
+                contents=[prompt, image_part],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=GeminiAnalysisResult,
+                ),
+            )
+        except APIError as e:
+            code = getattr(e, "code", 500)
+            if code == 401:
+                raise AuthenticationError(f"Gemini authentication failed: {e}") from e
+            elif code == 429:
+                if "quota" in str(e).lower():
+                    raise QuotaExceededError(f"Gemini quota exceeded: {e}") from e
+                raise RateLimitError(f"Gemini rate limit exceeded: {e}") from e
+            elif code in (500, 502, 503, 504):
+                raise TemporaryUnavailableError(f"Gemini temporarily unavailable: {e}") from e
+            else:
+                raise UnknownProviderError(f"Gemini API error {code}: {e}") from e
+        except Exception as e:
+            error_name = type(e).__name__
+            if "Timeout" in error_name:
+                raise TimeoutError(f"Gemini request timed out: {e}") from e
+            if "Connection" in error_name or "Network" in error_name:
+                raise TemporaryUnavailableError(f"Gemini network error: {e}") from e
+            raise UnknownProviderError(f"Unknown Gemini failure: {e}") from e
 
     async def analyze_image(
         self,
@@ -87,18 +147,7 @@ class GeminiProvider:
 
         start_time = time.monotonic()
 
-        try:
-            response = self._client.models.generate_content(
-                model=self._model_name,
-                contents=[prompt, image_part],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=GeminiAnalysisResult,
-                ),
-            )
-        except Exception as e:
-            logger.error(f"Gemini API call failed: {type(e).__name__}: {e}")
-            raise GeminiProviderError(f"Gemini analysis failed: {e}") from e
+        response = self._execute_with_retry(prompt, image_part)
 
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -109,7 +158,7 @@ class GeminiProvider:
 
         if not response.parsed:
             logger.error("Gemini returned unparseable response")
-            raise GeminiProviderError("Gemini returned an empty or unparseable response")
+            raise MalformedResponseError("Gemini returned an empty or unparseable response")
 
         return ProviderResult(
             analysis=response.parsed,
@@ -151,8 +200,4 @@ class GeminiProvider:
             return base_prompt
 
 
-# ── Provider errors ──────────────────────────────────────────────────────────
-
-class GeminiProviderError(Exception):
-    """Raised when the Gemini provider encounters an error."""
-    pass
+# Note: GeminiProviderError is removed. We use the hierarchy in app.modules.assist.exceptions

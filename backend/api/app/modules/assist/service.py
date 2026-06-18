@@ -17,7 +17,25 @@ import uuid
 
 from fastapi import HTTPException, status
 
-from .providers.gemini import GeminiProvider, GeminiProviderError, ProviderResult
+from app.api.errors import (
+    ASSIST_PROVIDER_UNAVAILABLE,
+    ASSIST_TIMEOUT,
+    ASSIST_QUOTA_EXCEEDED,
+    ASSIST_RATE_LIMIT,
+    ASSIST_PROVIDER_FAILED,
+    ASSIST_MALFORMED_RESPONSE,
+)
+
+from .providers.gemini import GeminiProvider, ProviderResult
+from .exceptions import (
+    ProviderError,
+    AuthenticationError,
+    QuotaExceededError,
+    RateLimitError,
+    TemporaryUnavailableError,
+    TimeoutError,
+    MalformedResponseError,
+)
 from .schemas import (
     AssistResponse,
     AssistResponseData,
@@ -71,18 +89,47 @@ class AssistService:
                 mime_type=mime_type,
                 intent_type=intent_type,
             )
-        except GeminiProviderError as e:
+        except ProviderError as e:
             logger.error(
                 "Provider analysis failed",
-                extra={"session_id": session_id, "turn_id": turn_id, "error": str(e)},
+                extra={"session_id": session_id, "turn_id": turn_id, "error": str(e), "error_type": type(e).__name__},
             )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail={
-                    "code": "ASSIST.PROVIDER.FAILED",
-                    "message": "Image analysis failed. Please try again.",
-                },
-            ) from e
+            
+            if isinstance(e, RateLimitError):
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={"code": ASSIST_RATE_LIMIT, "message": "AI service is receiving too many requests", "retry_after": 10},
+                ) from e
+            elif isinstance(e, QuotaExceededError):
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={"code": ASSIST_QUOTA_EXCEEDED, "message": "AI service quota exceeded", "retry_after": 3600},
+                ) from e
+            elif isinstance(e, TimeoutError):
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail={"code": ASSIST_TIMEOUT, "message": "AI service timed out", "retry_after": 30},
+                ) from e
+            elif isinstance(e, TemporaryUnavailableError):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={"code": ASSIST_PROVIDER_UNAVAILABLE, "message": "AI service temporarily unavailable", "retry_after": 30},
+                ) from e
+            elif isinstance(e, MalformedResponseError):
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail={"code": ASSIST_MALFORMED_RESPONSE, "message": "AI service returned invalid response"},
+                ) from e
+            elif isinstance(e, AuthenticationError):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={"code": ASSIST_PROVIDER_FAILED, "message": "AI service misconfigured"},
+                ) from e
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail={"code": ASSIST_PROVIDER_FAILED, "message": "Image analysis failed. Please try again."},
+                ) from e
 
         logger.info(
             "Assist analysis completed",
