@@ -54,8 +54,3 @@ app.include_router(api_router)
 def root() -> dict[str, str]:
     logger.info("Root endpoint called")
     return {"message": settings.app.app_name}
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": settings.app.app_name}
