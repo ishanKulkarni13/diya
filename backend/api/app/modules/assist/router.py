@@ -13,36 +13,15 @@ import logging
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
+from app.api.providers import provide_assist
 from app.config.settings import settings
 
-from .providers.gemini import GeminiProvider
 from .schemas import AssistResponse
 from .service import AssistService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/assist", tags=["assist"])
-
-
-# ── Dependency injection ─────────────────────────────────────────────────────
-
-def get_assist_service() -> AssistService:
-    """Dependency for getting the AssistService with the configured provider."""
-    api_key = settings.providers.gemini_api_key
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "code": "ASSIST.PROVIDER.NOT_CONFIGURED",
-                "message": "Gemini API key is not configured. Set GEMINI_API_KEY in .env.",
-            },
-        )
-
-    provider = GeminiProvider(
-        api_key=api_key,
-        model_name=settings.providers.gemini_model_name,
-    )
-    return AssistService(provider)
 
 
 # ── Endpoint ─────────────────────────────────────────────────────────────────
@@ -55,7 +34,7 @@ async def create_assist_turn(
     client_context_json: str = Form(...),
     image_file: UploadFile = File(...),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
-    assist_service: AssistService = Depends(get_assist_service),
+    assist_service: AssistService = Depends(provide_assist),
 ) -> AssistResponse:
     """
     Create an Assist turn.

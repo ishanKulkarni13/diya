@@ -7,22 +7,17 @@ from app.api.deps import get_bearer_token
 from app.db.session import get_db
 from app.schemas import LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest
 
+from app.api.providers import provide_auth
 from .repository import SqlAlchemyAuthRepository
 from .service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-async def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
-    """Dependency for getting the AuthService with the current DB session."""
-    repository = SqlAlchemyAuthRepository(db)
-    return AuthService(repository)
-
-
 @router.post("/login")
 async def login(
     request: LoginRequest,
-    auth_service: AuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(provide_auth),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     token_pair = await auth_service.login(request)
@@ -47,7 +42,7 @@ async def login(
 @router.post("/register")
 async def register(
     request: RegisterRequest,
-    auth_service: AuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(provide_auth),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     token_pair = await auth_service.register(request)
@@ -72,7 +67,7 @@ async def register(
 @router.post("/refresh")
 async def refresh(
     request: RefreshRequest,
-    auth_service: AuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(provide_auth),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     token_pair = await auth_service.refresh(request)
@@ -98,7 +93,7 @@ async def refresh(
 async def logout(
     request: LogoutRequest | None = None,
     token: str = Depends(get_bearer_token),
-    auth_service: AuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(provide_auth),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     await auth_service.logout(request, token)
@@ -112,7 +107,7 @@ async def logout(
 @router.get("/me")
 async def me(
     token: str = Depends(get_bearer_token),
-    auth_service: AuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(provide_auth),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     me_response = await auth_service.me(token)
