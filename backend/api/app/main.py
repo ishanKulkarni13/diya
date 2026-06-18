@@ -13,6 +13,7 @@ from app.config.settings import settings
 from app.db.session import async_session_factory
 from app.modules.auth.repository import SqlAlchemyAuthRepository
 from app.modules.auth.service import AuthService
+from app.api.middleware import RequestLoggingMiddleware
 
 setup_logging()
 
@@ -41,6 +42,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app.app_name, lifespan=lifespan)
+app.add_middleware(RequestLoggingMiddleware)
+
 register_error_handlers(app)
 app.include_router(api_router)
 
