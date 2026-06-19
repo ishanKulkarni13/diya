@@ -11,6 +11,8 @@ import '../domain/ports/speech_output_port.dart';
 import '../infrastructure/assist_api.dart';
 import '../infrastructure/flutter_tts_adapter.dart';
 import '../infrastructure/image_picker_adapter.dart';
+import '../application/assist_ingress_service.dart';
+import '../../../core/hardware/providers/hardware_providers.dart';
 
 final assistApiProvider = Provider<AssistApi>((ref) {
   final dio = ref.watch(apiDioProvider);
@@ -48,4 +50,16 @@ final assistControllerProvider = StateNotifierProvider<AssistController, AssistS
     normalizer: ref.watch(assistTriggerNormalizerProvider),
     ref: ref,
   );
+});
+
+final assistIngressServiceProvider = Provider<AssistIngressService>((ref) {
+  final service = AssistIngressService(
+    eventRouter: ref.watch(eventRouterProvider),
+    assistController: ref.watch(assistControllerProvider.notifier),
+  );
+
+  service.start();
+  ref.onDispose(() => service.dispose());
+
+  return service;
 });

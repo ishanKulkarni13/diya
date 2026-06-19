@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import '../../domain/models/base_device.dart';
 import '../../domain/models/connection_state.dart';
 import '../../domain/models/hardware_event.dart';
@@ -100,6 +100,7 @@ class SmartCaneAdapter implements BaseDevice {
           priority: pressType == ButtonPressType.long ? 0 : 1,
           trusted: true,
         );
+        debugPrint('ButtonPressEvent emitted: ${btnId.name} ${pressType.name}');
       }
       
       if (event != null) {

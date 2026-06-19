@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class BleDiscoveryService {
@@ -15,6 +16,7 @@ class BleDiscoveryService {
 
     final sub = FlutterBluePlus.scanResults.listen((results) {
       for (var result in results) {
+        debugPrint('BLE discovered: ${result.device.remoteId.str}');
         controller.add({
           'device_id': result.device.remoteId.str,
           'device_type': 'cane',

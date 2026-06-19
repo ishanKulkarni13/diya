@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/app_error.dart';
 import '../../safety/models/safety_state.dart';
@@ -27,7 +28,7 @@ class AssistController extends StateNotifier<AssistState> {
       // Ignore if already running
       return;
     }
-
+    debugPrint('Assist started');
     state = state.copyWith(status: AssistStatus.capturing, error: null);
 
     final intent = _normalizer.normalize(trigger);

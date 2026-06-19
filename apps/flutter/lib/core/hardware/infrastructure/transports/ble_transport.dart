@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../domain/transports/device_transport.dart';
 
@@ -58,6 +58,7 @@ class BleTransportImpl implements DeviceTransport {
       });
 
       await _device!.connect(license: License.nonprofit);
+      debugPrint('BLE connected: $address');
 
       try {
         await _device!.requestMtu(512);
@@ -91,9 +92,11 @@ class BleTransportImpl implements DeviceTransport {
       }
 
       await _rxCharacteristic!.setNotifyValue(true);
+      debugPrint('Notification subscribed');
       _characteristicSub?.cancel();
       _characteristicSub = _rxCharacteristic!.lastValueStream.listen((value) {
         if (value.isNotEmpty) {
+          debugPrint('Packet received: ${value.length} bytes');
           _incomingController.add(Uint8List.fromList(value));
         }
       });

@@ -12,5 +12,6 @@ class AssistBootstrapper extends RuntimeBootstrapper {
     // Ensures Assist pipeline and controller are created and ready
     // to observe hardware triggers independently of the UI.
     container.read(assistControllerProvider);
+    container.read(assistIngressServiceProvider);
   }
 }
