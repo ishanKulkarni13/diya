@@ -91,8 +91,9 @@ class AssistService:
             )
         except ProviderError as e:
             logger.error(
-                "Provider analysis failed",
+                f"Provider analysis failed: {type(e).__name__}: {str(e)}",
                 extra={"session_id": session_id, "turn_id": turn_id, "error": str(e), "error_type": type(e).__name__},
+                exc_info=True,
             )
             
             if isinstance(e, RateLimitError):
