@@ -17,8 +17,15 @@ class ConnectionCoordinator {
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
+  DateTime? _lastConnectedAt;
   StreamSubscription? _incomingSub;
   StreamSubscription? _transportStateSub;
+
+  /// How many consecutive reconnect attempts have been made since last drop.
+  int get reconnectAttempts => _reconnectAttempts;
+
+  /// UTC timestamp of the last successful GATT connection.
+  DateTime? get lastConnectedAt => _lastConnectedAt;
 
   ConnectionCoordinator({
     required this.deviceId,
@@ -59,6 +66,7 @@ class ConnectionCoordinator {
     switch (tState) {
       case TransportState.connected:
         _reconnectAttempts = 0;
+        _lastConnectedAt = DateTime.now().toUtc();
         _updateState(HardwareConnectionState.ready);
         _resetHeartbeat();
         break;

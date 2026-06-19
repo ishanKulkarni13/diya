@@ -89,6 +89,8 @@ class SmartCaneAdapter implements BaseDevice {
         ButtonId btnId = buttonNum == 2 ? ButtonId.button2 : ButtonId.button1;
         ButtonPressType pressType = ButtonPressType.short;
         
+        // Firmware sends "single" for a normal press; also accept "short"
+        // for forward-compatibility with any future firmware revision.
         if (pressTypeStr == 'long') pressType = ButtonPressType.long;
         if (pressTypeStr == 'double') pressType = ButtonPressType.double;
         if (pressTypeStr == 'triple') pressType = ButtonPressType.triple;
@@ -101,6 +103,23 @@ class SmartCaneAdapter implements BaseDevice {
           trusted: true,
         );
         debugPrint('ButtonPressEvent emitted: ${btnId.name} ${pressType.name}');
+      }
+
+      if (dto.type == 'obstacle') {
+        final rawDistance = dto.payload['distance_cm'];
+        final detected = (dto.payload['detected'] as bool?) ?? true;
+        final distanceCm = rawDistance is num ? rawDistance.toDouble() : null;
+
+        if (distanceCm != null) {
+          event = UltrasonicDetectionEvent(
+            deviceId: id,
+            distanceCm: distanceCm,
+            detected: detected,
+            priority: 2,
+            trusted: true,
+          );
+          debugPrint('UltrasonicDetectionEvent: ${distanceCm.toStringAsFixed(1)} cm detected=$detected');
+        }
       }
       
       if (event != null) {

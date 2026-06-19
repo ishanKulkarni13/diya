@@ -12,6 +12,8 @@ import '../../../core/hardware/domain/models/connection_state.dart';
 import '../../../core/hardware/domain/models/known_device.dart';
 import '../../../core/hardware/domain/observability/hardware_log_event.dart';
 import '../../../core/hardware/providers/hardware_providers.dart';
+import '../../../features/cane/providers/cane_providers.dart';
+import '../../../features/cane/domain/obstacle_state.dart';
 
 class DeviceDetailScreen extends ConsumerStatefulWidget {
   final String deviceId;
@@ -442,22 +444,32 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
   }
 
   Widget _buildCaneCapabilities(BuildContext context, WidgetRef ref, BaseDevice? device, bool isConnected) {
+    final obstacleState = ref.watch(obstacleIngressServiceProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Cane Capabilities', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
+
+        // ── Haptic ──────────────────────────────────────────────────────────
         Card(
           child: ListTile(
             leading: const Icon(Icons.vibration),
             title: const Text('Trigger Haptic Feedback'),
-            subtitle: const Text('Sends a vibration command'),
+            subtitle: const Text('Sends a vibration command to the cane'),
             trailing: ElevatedButton(
               onPressed: isConnected && device?.state == HardwareConnectionState.ready
-                  ? () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vibration command simulated.')),
-                      );
+                  ? () async {
+                      final cap = device?.getCapability<HapticCapability>();
+                      if (cap != null) {
+                        await cap.triggerHaptic(200);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Haptic command sent (200 ms).')),
+                          );
+                        }
+                      }
                     }
                   : null,
               child: const Text('VIBRATE'),
@@ -465,36 +477,132 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Ultrasonic Sensor Feed', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 24),
-                Center(
-                  child: Container(
-                    height: 150,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.black87,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'WAITING FOR TELEMETRY STREAM...',
-                        style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace'),
-                      ),
-                    ),
+
+        // ── Obstacle telemetry ───────────────────────────────────────────────
+        _buildObstacleCard(obstacleState),
+        const SizedBox(height: 16),
+
+        // ── Reconnect status ─────────────────────────────────────────────────
+        _buildReconnectCard(device),
+      ],
+    );
+  }
+
+  Widget _buildObstacleCard(ObstacleState? obstacle) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Obstacle Telemetry', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            if (obstacle == null)
+              Container(
+                height: 80,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Text(
+                    'WAITING FOR TELEMETRY STREAM...',
+                    style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace'),
                   ),
                 ),
-              ],
+              )
+            else ...[
+              _telemetryRow('Distance', '${obstacle.distanceCm.toStringAsFixed(1)} cm'),
+              const SizedBox(height: 6),
+              _telemetryRow(
+                'Detected',
+                obstacle.detected ? 'YES' : 'NO',
+                valueColor: obstacle.detected ? Colors.redAccent : Colors.greenAccent,
+              ),
+              const SizedBox(height: 6),
+              _telemetryRow('Updated', _timeAgo(obstacle.updatedAt)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReconnectCard(BaseDevice? device) {
+    // Pull coordinator telemetry through the adapter's stateStream via
+    // the device manager — we surface what's publicly available.
+    final state = device?.state;
+    final isReconnecting = state == HardwareConnectionState.reconnecting;
+    final isDegraded = state == HardwareConnectionState.degraded;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Reconnect', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            _telemetryRow(
+              'Status',
+              state?.name ?? 'unknown',
+              valueColor: state == HardwareConnectionState.ready
+                  ? Colors.greenAccent
+                  : (isReconnecting || isDegraded ? Colors.orangeAccent : Colors.grey),
             ),
+            const SizedBox(height: 6),
+            _telemetryRow(
+              'Auto-reconnect',
+              'Enabled',
+              valueColor: Colors.greenAccent,
+            ),
+            const SizedBox(height: 6),
+            _telemetryRow(
+              'Sequence',
+              '1 s → 3 s → 5 s → 10 s → 30 s',
+            ),
+            if (device != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      ref.read(deviceManagerProvider).retryConnection(widget.deviceId),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Reconnect Now'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _telemetryRow(String label, String value, {Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey)),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.bold,
+            color: valueColor,
           ),
         ),
       ],
     );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 5) return 'just now';
+    if (diff.inSeconds < 60) return '${diff.inSeconds} sec ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    return '${diff.inHours} hr ago';
   }
 
   Widget _buildGoggleCapabilities(BuildContext context, WidgetRef ref, BaseDevice? device, bool isConnected) {
