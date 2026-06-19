@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 
 import '../../../core/hardware/domain/models/base_device.dart';
 import '../../../core/hardware/domain/models/known_device.dart';
 import '../../../core/hardware/providers/hardware_providers.dart';
+import '../../../core/runtime/foreground/foreground_service.dart';
 
 class DebugDevicesTab extends ConsumerStatefulWidget {
   const DebugDevicesTab({super.key});
@@ -16,13 +19,24 @@ class DebugDevicesTab extends ConsumerStatefulWidget {
 class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
   List<KnownDevice> _knownDevices = const [];
   bool _isLoadingKnown = false;
+  bool _isForegroundEnabled = false;
 
   @override
   void initState() {
     super.initState();
+    _checkForegroundStatus();
     Future.microtask(() async {
       await _refreshAll();
     });
+  }
+
+  Future<void> _checkForegroundStatus() async {
+    final isRunning = await FlutterBackgroundService().isRunning();
+    if (mounted) {
+      setState(() {
+        _isForegroundEnabled = isRunning;
+      });
+    }
   }
 
   Future<void> _refreshAll() async {
@@ -58,6 +72,8 @@ class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
 
         return ListView(
           children: [
+            _buildForegroundToggle(),
+            const Divider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
               child: Row(
@@ -137,6 +153,51 @@ class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
                   )),
           ],
         );
+      },
+    );
+  }
+
+  Widget _buildForegroundToggle() {
+    return SwitchListTile(
+      title: const Text('Enable Foreground Runtime', style: TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: const Text('Runs DiyaRuntime in a background isolate'),
+      value: _isForegroundEnabled,
+      onChanged: (bool value) async {
+        final service = FlutterBackgroundService();
+        if (value) {
+          debugPrint('Foreground service requested');
+          final status = await Permission.notification.request();
+          
+          if (!status.isGranted) {
+            debugPrint('Notification permission denied');
+            setState(() {
+              _isForegroundEnabled = false;
+            });
+            return;
+          }
+          debugPrint('Permission granted');
+          
+          if (!await service.isRunning()) {
+            debugPrint('Service initialized');
+            final diyaService = DiyaForegroundService();
+            await diyaService.initialize();
+            await diyaService.start();
+            
+            await Future.delayed(const Duration(seconds: 2));
+          }
+          
+          final isRunning = await service.isRunning();
+          setState(() {
+            _isForegroundEnabled = isRunning;
+          });
+        } else {
+          if (await service.isRunning()) {
+            service.invoke("stopService");
+          }
+          setState(() {
+            _isForegroundEnabled = false;
+          });
+        }
       },
     );
   }
