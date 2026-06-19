@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from jose import JWTError
 
 from app.api.deps import get_bearer_token
+from app.api.providers import provide_guardian
 from app.config.security import decode_access_token
 
 from .schemas import (
@@ -27,7 +28,7 @@ router = APIRouter(prefix="/guardian", tags=["guardian"])
 async def invite_guardian(
     request: GuardianInviteRequest,
     token: str = Depends(get_bearer_token),
-    guardian_service: GuardianService = Depends(),
+    guardian_service: GuardianService = Depends(provide_guardian),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """
@@ -68,7 +69,7 @@ async def invite_guardian(
 async def accept_invitation(
     request: GuardianAcceptRequest,
     token: str = Depends(get_bearer_token),
-    guardian_service: GuardianService = Depends(),
+    guardian_service: GuardianService = Depends(provide_guardian),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """
@@ -107,7 +108,7 @@ async def accept_invitation(
 async def reject_invitation(
     request: GuardianAcceptRequest,
     token: str = Depends(get_bearer_token),
-    guardian_service: GuardianService = Depends(),
+    guardian_service: GuardianService = Depends(provide_guardian),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """Reject a guardian invitation."""
@@ -142,7 +143,7 @@ async def reject_invitation(
 async def remove_guardian(
     relationship_id: str,
     token: str = Depends(get_bearer_token),
-    guardian_service: GuardianService = Depends(),
+    guardian_service: GuardianService = Depends(provide_guardian),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """
@@ -180,7 +181,7 @@ async def remove_guardian(
 @router.get("/me")
 async def get_my_guardians(
     token: str = Depends(get_bearer_token),
-    guardian_service: GuardianService = Depends(),
+    guardian_service: GuardianService = Depends(provide_guardian),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """
@@ -215,7 +216,7 @@ async def get_my_guardians(
 @router.get("/blind-users")
 async def get_blind_users(
     token: str = Depends(get_bearer_token),
-    guardian_service: GuardianService = Depends(),
+    guardian_service: GuardianService = Depends(provide_guardian),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """

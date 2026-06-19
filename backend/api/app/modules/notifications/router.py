@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from jose import JWTError
 
 from app.api.deps import get_bearer_token
+from app.api.providers import provide_notification_repo
 from app.config.security import decode_access_token
 
 from .schemas import DeviceTokenRequest, NotificationPreferencesResponse
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 async def register_device_token(
     request: DeviceTokenRequest,
     token: str = Depends(get_bearer_token),
-    notification_repo: NotificationRepository = Depends(),
+    notification_repo: NotificationRepository = Depends(provide_notification_repo),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """
@@ -73,7 +74,7 @@ async def register_device_token(
 async def delete_device_token(
     device_token: str,
     token: str = Depends(get_bearer_token),
-    notification_repo: NotificationRepository = Depends(),
+    notification_repo: NotificationRepository = Depends(provide_notification_repo),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """

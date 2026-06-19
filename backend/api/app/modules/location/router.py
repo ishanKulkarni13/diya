@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from jose import JWTError
 
 from app.api.deps import get_bearer_token
+from app.api.providers import provide_location
 from app.config.security import decode_access_token
 
 from .schemas import LocationUpdateRequest, LocationResponse
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/location", tags=["location"])
 async def update_location(
     request: LocationUpdateRequest,
     token: str = Depends(get_bearer_token),
-    location_service: LocationService = Depends(),
+    location_service: LocationService = Depends(provide_location),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """
@@ -61,7 +62,7 @@ async def update_location(
 @router.get("/me", response_model=LocationResponse)
 async def get_my_location(
     token: str = Depends(get_bearer_token),
-    location_service: LocationService = Depends(),
+    location_service: LocationService = Depends(provide_location),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """Get my current location."""
@@ -93,7 +94,7 @@ async def get_my_location(
 async def get_guardian_location(
     blind_user_id: str,
     token: str = Depends(get_bearer_token),
-    location_service: LocationService = Depends(),
+    location_service: LocationService = Depends(provide_location),
     x_trace_id: str | None = Header(default=None),
 ) -> dict:
     """
