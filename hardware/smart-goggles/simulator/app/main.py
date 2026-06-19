@@ -5,8 +5,10 @@ import base64
 import io
 import json
 import logging
+import socket
 import struct
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator, Dict
@@ -29,7 +31,39 @@ logger = logging.getLogger("goggle-simulator")
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 
-app = FastAPI(title="Smart Goggle Simulator")
+# UDP Discovery Configuration
+UDP_DISCOVERY_PORT = 8888
+UDP_DISCOVERY_INTERVAL = 3.0  # seconds
+UDP_BROADCAST_ADDRESS = "255.255.255.255"
+UDP_INITIAL_BURST_COUNT = 3
+UDP_INITIAL_BURST_INTERVAL = 1.0  # seconds
+
+_udp_broadcast_task: asyncio.Task | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle app startup and shutdown events."""
+    global _udp_broadcast_task
+    
+    # Startup: Start UDP broadcast task
+    logger.info("=== Goggle Simulator Starting ===")
+    logger.info(f"[UDP] Starting discovery broadcasts on {UDP_BROADCAST_ADDRESS}:{UDP_DISCOVERY_PORT}")
+    _udp_broadcast_task = asyncio.create_task(_udp_broadcast_loop())
+    
+    yield
+    
+    # Shutdown: Stop UDP broadcast task
+    logger.info("=== Goggle Simulator Shutting Down ===")
+    if _udp_broadcast_task:
+        _udp_broadcast_task.cancel()
+        try:
+            await _udp_broadcast_task
+        except asyncio.CancelledError:
+            logger.info("[UDP] Broadcast task cancelled")
+
+
+app = FastAPI(title="Smart Goggle Simulator", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(_BASE_DIR / "static")), name="static")
 
 state = SimulatorState()
@@ -209,6 +243,77 @@ class RegisterPhoneRequest(BaseModel):
 class SosRequest(BaseModel):
     location: str | None = None
     idempotency_key: str | None = None
+
+
+def _create_udp_broadcast_packet() -> bytes:
+    """Create a UDP discovery broadcast packet following the Diya Discovery Protocol v1.0.0."""
+    packet = {
+        "protocol": "diya-discovery",
+        "version": "1.0.0",
+        "device_id": state.device_id,
+        "device_name": "Diya Smart Goggles Simulator",
+        "device_type": "goggle",
+        "ip": _get_local_ip(),
+        "port": 9000,
+        "battery": state.battery_level,
+        "uptime": int((datetime.now(tz=timezone.utc) - state.started_at).total_seconds()),
+        "timestamp": int(time.time() * 1000),  # milliseconds
+    }
+    return json.dumps(packet).encode("utf-8")
+
+
+def _get_local_ip() -> str:
+    """Get the local IP address of this machine."""
+    try:
+        # Create a socket to determine the local IP
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            # Connect to a public DNS server (doesn't actually send data)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            return local_ip
+    except Exception:  # noqa: BLE001
+        # Fallback to localhost if detection fails
+        return "127.0.0.1"
+
+
+async def _udp_broadcast_loop() -> None:
+    """Background task that broadcasts UDP discovery packets."""
+    logger.info("[UDP] Starting broadcast loop")
+    
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        
+        # Initial burst (fast discovery on startup)
+        for i in range(UDP_INITIAL_BURST_COUNT):
+            try:
+                packet = _create_udp_broadcast_packet()
+                sock.sendto(packet, (UDP_BROADCAST_ADDRESS, UDP_DISCOVERY_PORT))
+                logger.info(f"[UDP] Broadcast sent ({len(packet)} bytes) - burst {i+1}/{UDP_INITIAL_BURST_COUNT}")
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"[UDP] Broadcast failed: {exc}")
+            
+            await asyncio.sleep(UDP_INITIAL_BURST_INTERVAL)
+        
+        # Ongoing broadcasts (maintenance heartbeat)
+        while True:
+            try:
+                packet = _create_udp_broadcast_packet()
+                sock.sendto(packet, (UDP_BROADCAST_ADDRESS, UDP_DISCOVERY_PORT))
+                logger.info(f"[UDP] Broadcast sent ({len(packet)} bytes)")
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"[UDP] Broadcast failed: {exc}")
+            
+            # Add jitter to avoid synchronized broadcasts
+            import random
+            jitter = random.uniform(-0.5, 0.5)
+            await asyncio.sleep(UDP_DISCOVERY_INTERVAL + jitter)
+            
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"[UDP] Broadcast loop crashed: {exc}")
+    finally:
+        sock.close()
+        logger.info("[UDP] Broadcast loop stopped")
 
 
 async def _notify_ultrasonic_event(distance_cm: float, detected: bool) -> None:
