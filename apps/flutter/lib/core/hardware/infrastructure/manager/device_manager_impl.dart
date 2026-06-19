@@ -9,6 +9,7 @@ import '../observability/hardware_logger.dart';
 import '../../domain/messaging/event_bus.dart';
 import '../transports/device_discovery_server.dart';
 import '../services/ble_discovery_service.dart';
+import '../services/udp_discovery_service.dart';
 import 'adapter_factory.dart';
 
 class DeviceManagerImpl implements DeviceManager {
@@ -18,9 +19,11 @@ class DeviceManagerImpl implements DeviceManager {
   final AdapterFactory _adapterFactory;
   final DeviceDiscoveryServer _discoveryServer;
   final BleDiscoveryService _bleDiscoveryService;
+  final UdpDiscoveryService _udpDiscoveryService;
   
   StreamSubscription? _discoverySubscription;
   StreamSubscription? _bleDiscoverySubscription;
+  StreamSubscription? _udpDiscoverySubscription;
   StreamSubscription? _sensorEventSubscription;
 
   final Map<String, BaseDevice> _activeDevices = {};
@@ -34,6 +37,7 @@ class DeviceManagerImpl implements DeviceManager {
     this._adapterFactory,
     this._discoveryServer,
     this._bleDiscoveryService,
+    this._udpDiscoveryService,
   ) {
     _discoveryServer.start();
     _discoverySubscription = _discoveryServer.onDeviceRegistered.listen(_handleDiscoveryEvent);
@@ -101,11 +105,15 @@ class DeviceManagerImpl implements DeviceManager {
     
     _bleDiscoverySubscription?.cancel();
     _bleDiscoverySubscription = _bleDiscoveryService.scan().listen(_handleDiscoveryEvent);
+    
+    _udpDiscoverySubscription?.cancel();
+    _udpDiscoverySubscription = _udpDiscoveryService.scan().listen(_handleDiscoveryEvent);
   }
 
   @override
   Future<void> stopScan() async {
     _bleDiscoverySubscription?.cancel();
+    _udpDiscoverySubscription?.cancel();
   }
 
   @override
@@ -176,6 +184,7 @@ class DeviceManagerImpl implements DeviceManager {
     _discoverySubscription?.cancel();
     _sensorEventSubscription?.cancel();
     _bleDiscoverySubscription?.cancel();
+    _udpDiscoverySubscription?.cancel();
     for (final sub in _stateSubscriptions.values) {
       sub.cancel();
     }

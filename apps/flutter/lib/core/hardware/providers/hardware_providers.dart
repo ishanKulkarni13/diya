@@ -17,6 +17,7 @@ import '../infrastructure/services/ble_permission_service_impl.dart';
 import '../infrastructure/services/debug_goggle_service.dart';
 import '../infrastructure/transports/device_discovery_server.dart';
 import '../infrastructure/services/ble_discovery_service.dart';
+import '../infrastructure/services/udp_discovery_service.dart';
 
 // ──────────────────────────────────────────────────────────────
 // External Dependencies (must be overridden in ProviderScope)
@@ -62,6 +63,12 @@ final blePermissionServiceProvider = Provider<BlePermissionService>((ref) {
 
 final bleDiscoveryServiceProvider = Provider<BleDiscoveryService>((ref) {
   return BleDiscoveryService('1b050001-c852-4752-b883-fa4c0342ab01');
+});
+
+final udpDiscoveryServiceProvider = Provider<UdpDiscoveryService>((ref) {
+  final service = UdpDiscoveryService(port: 8888);
+  ref.onDispose(() => service.stop());
+  return service;
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -112,6 +119,7 @@ final deviceManagerProvider = Provider<DeviceManager>((ref) {
   final adapterFactory = ref.watch(adapterFactoryProvider);
   final discoveryServer = ref.watch(deviceDiscoveryServerProvider);
   final bleDiscoveryService = ref.watch(bleDiscoveryServiceProvider);
+  final udpDiscoveryService = ref.watch(udpDiscoveryServiceProvider);
   
   final manager = DeviceManagerImpl(
     registry, 
@@ -120,6 +128,7 @@ final deviceManagerProvider = Provider<DeviceManager>((ref) {
     adapterFactory,
     discoveryServer,
     bleDiscoveryService,
+    udpDiscoveryService,
   );
   ref.onDispose(() => manager.dispose());
   return manager;
