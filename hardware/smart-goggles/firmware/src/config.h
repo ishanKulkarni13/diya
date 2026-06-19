@@ -14,8 +14,8 @@
 // ============================================================================
 
 // Default WiFi credentials (can be changed via serial or web interface)
-#define DEFAULT_WIFI_SSID "Your-WiFi-SSID"
-#define DEFAULT_WIFI_PASSWORD "Your-WiFi-Password"
+#define DEFAULT_WIFI_SSID "Cat"
+#define DEFAULT_WIFI_PASSWORD "9136360202"
 
 // WiFi connection timeout
 #define WIFI_CONNECT_TIMEOUT_MS 20000
@@ -84,9 +84,16 @@
 // Hardcoded battery level (hardware integration postponed)
 #define BATTERY_LEVEL_HARDCODED 75
 
-// Heap monitoring thresholds
-#define HEAP_LOW_THRESHOLD 50000
-#define HEAP_CRITICAL_THRESHOLD 20000
+// ============================================================================
+// MEMORY MONITORING THRESHOLDS
+// ============================================================================
+
+// Internal heap low-water marks
+#define HEAP_LOW_THRESHOLD      50000   // Warn when free heap drops below 50 KB
+#define HEAP_CRITICAL_THRESHOLD 20000   // Critical when free heap drops below 20 KB
+
+// PSRAM low-water threshold for periodic monitoring
+#define PSRAM_LOW_THRESHOLD 500000      // 500 KB — warn if PSRAM free falls below this
 
 // ============================================================================
 // LOGGING CONFIGURATION
