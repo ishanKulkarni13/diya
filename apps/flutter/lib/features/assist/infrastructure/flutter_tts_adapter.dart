@@ -1,4 +1,5 @@
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter/foundation.dart';
 import '../domain/ports/speech_output_port.dart';
 
 /// Implements SpeechOutputPort using the flutter_tts package.
@@ -18,6 +19,7 @@ class FlutterTtsAdapter implements SpeechOutputPort {
 
   @override
   Future<void> speak(String text) async {
+    debugPrint('TTS speaking: $text');
     await _tts.speak(text);
   }
 

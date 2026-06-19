@@ -26,6 +26,7 @@ class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
   }
 
   Future<void> _refreshAll() async {
+    await ref.read(blePermissionServiceProvider).requestPermissions();
     await ref.read(deviceManagerProvider).startScan();
     await _loadKnownDevices();
   }
@@ -125,13 +126,25 @@ class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
                       leading: const Icon(Icons.devices_other),
                       title: Text(device.deviceId, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text('Type: ${device.deviceType.name}\nLast IP: ${device.lastKnownIp ?? 'unknown'}:${device.lastKnownPort ?? 80}'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                        tooltip: 'Forget device',
-                        onPressed: () async {
-                          await ref.read(deviceRegistryProvider).removeDevice(device.deviceId);
-                          await _loadKnownDevices();
-                        },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.link, color: Colors.blueAccent),
+                            tooltip: 'Connect',
+                            onPressed: () {
+                              ref.read(deviceManagerProvider).retryConnection(device.deviceId);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                            tooltip: 'Forget device',
+                            onPressed: () async {
+                              await ref.read(deviceRegistryProvider).removeDevice(device.deviceId);
+                              await _loadKnownDevices();
+                            },
+                          ),
+                        ],
                       ),
                     ),
                   )),

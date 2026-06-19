@@ -44,6 +44,7 @@ class AssistIngressService {
           pressType: AssistPressType.tap,
           sourceDeviceId: event.deviceId,
         );
+        debugPrint('Assist trigger created: ${trigger.triggerId}');
         _assistController.triggerAssist(trigger);
         break;
       case ButtonPressType.long:

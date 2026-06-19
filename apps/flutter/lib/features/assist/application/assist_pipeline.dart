@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/errors/app_error.dart';
 import '../domain/models/assist_intent.dart';
 import '../domain/models/assist_response.dart';
@@ -82,6 +84,8 @@ class AssistPipeline {
         // Best-effort cleanup — do not fail the pipeline
       }
     }
+
+    debugPrint('Gemini response received');
 
     // 4. Speech Output
     onProgress(AssistStatus.speaking);
