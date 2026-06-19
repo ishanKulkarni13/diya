@@ -53,9 +53,12 @@ static void printBootDiagnostics() {
     // ── Firmware identity ────────────────────────────────────────────────
     Serial.printf("[BOOT] Firmware Version : %s\n", FIRMWARE_VERSION);
     Serial.printf("[BOOT] Device Type      : %s\n", DEVICE_TYPE);
-    Serial.printf("[BOOT] Build target     : ESP32-S3-N16R8\n");
+    Serial.printf("[BOOT] Build target     : ESP32-S3-WROOM-1-N16R8\n");
     Serial.printf("[BOOT] Board definition : 4d_systems_esp32s3_gen4_r8n16\n");
     Serial.printf("[BOOT] memory_type      : qio_opi\n");
+    Serial.printf("[BOOT] Camera XCLK      : %d Hz\n", CAMERA_XCLK_HZ);
+    Serial.printf("[BOOT] PSRAM mode gate  : xclk==16MHz → %s\n",
+                  CAMERA_XCLK_HZ == 16000000 ? "ACTIVE" : "INACTIVE — camera will produce corrupt images");
 
     // ── Chip identity ────────────────────────────────────────────────────
     esp_chip_info_t chip;
