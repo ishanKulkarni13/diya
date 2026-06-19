@@ -38,10 +38,26 @@ async def provide_auth(db: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(repository)
 
 
-async def provide_safety(db: AsyncSession = Depends(get_db)) -> SafetyEventService:
-    """Provide the SafetyEventService with the current DB session."""
-    repository = SqlAlchemySafetyEventRepository(db)
-    return SafetyEventService(repository)
+async def provide_safety(
+    db: AsyncSession = Depends(get_db),
+    notification_service: NotificationService = Depends(provide_notification_service),
+) -> SafetyEventService:
+    """Provide the SafetyEventService with the current DB session and notification service."""
+    from app.modules.guardian.repository import SqlAlchemyGuardianRepository
+    from app.modules.notifications.repository import SqlAlchemyNotificationRepository
+    
+    safety_repo = SqlAlchemySafetyEventRepository(db)
+    auth_repo = SqlAlchemyAuthRepository(db)
+    guardian_repo = SqlAlchemyGuardianRepository(db)
+    notification_repo = SqlAlchemyNotificationRepository(db)
+    
+    return SafetyEventService(
+        safety_repo,
+        auth_repo=auth_repo,
+        guardian_repo=guardian_repo,
+        notification_service=notification_service,
+        notification_repo=notification_repo,
+    )
 
 
 def provide_gemini() -> GeminiProvider:
