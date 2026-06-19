@@ -23,9 +23,23 @@ class GoggleCaptureAdapter implements ImageCapturePort {
   Future<File?> captureImage() async {
     debugPrint('[GoggleCaptureAdapter] Starting goggle capture...');
 
-    // Get current list of devices
-    final devices = await _deviceManager.devices.first;
-    debugPrint('[GoggleCaptureAdapter] Found ${devices.length} devices');
+    // Get current list of devices with timeout
+    // If no devices have been discovered yet, the stream may never emit
+    List<BaseDevice> devices;
+    try {
+      devices = await _deviceManager.devices.first
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () {
+              debugPrint('[GoggleCaptureAdapter] Timeout waiting for devices stream');
+              return <BaseDevice>[];
+            },
+          );
+      debugPrint('[GoggleCaptureAdapter] Found ${devices.length} devices');
+    } catch (e) {
+      debugPrint('[GoggleCaptureAdapter] Error accessing devices stream: $e');
+      return null;
+    }
 
     // Find first goggle device in ready state
     BaseDevice? goggle;
