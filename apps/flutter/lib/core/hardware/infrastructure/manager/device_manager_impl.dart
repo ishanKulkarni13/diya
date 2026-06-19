@@ -42,6 +42,9 @@ class DeviceManagerImpl implements DeviceManager {
     _discoveryServer.start();
     _discoverySubscription = _discoveryServer.onDeviceRegistered.listen(_handleDiscoveryEvent);
     _sensorEventSubscription = _discoveryServer.onSensorEvent.listen(_handleSensorEvent);
+    
+    // Emit initial empty list so stream subscribers don't hang forever
+    _emitDevices();
   }
 
   Future<void> _handleDiscoveryEvent(Map<String, dynamic> data) async {

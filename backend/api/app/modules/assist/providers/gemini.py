@@ -102,6 +102,7 @@ class GeminiProvider:
     )
     def _execute_with_retry(self, prompt, image_part):
         try:
+            logger.debug(f"Calling Gemini API with model: {self._model_name}")
             return self._client.models.generate_content(
                 model=self._model_name,
                 contents=[prompt, image_part],
@@ -111,6 +112,7 @@ class GeminiProvider:
                 ),
             )
         except APIError as e:
+            logger.error(f"Gemini APIError: code={getattr(e, 'code', 'unknown')}, message={str(e)}")
             code = getattr(e, "code", 500)
             if code == 401:
                 raise AuthenticationError(f"Gemini authentication failed: {e}") from e
@@ -123,6 +125,7 @@ class GeminiProvider:
             else:
                 raise UnknownProviderError(f"Gemini API error {code}: {e}") from e
         except Exception as e:
+            logger.error(f"Gemini unexpected error: {type(e).__name__}: {str(e)}", exc_info=True)
             error_name = type(e).__name__
             if "Timeout" in error_name:
                 raise TimeoutError(f"Gemini request timed out: {e}") from e

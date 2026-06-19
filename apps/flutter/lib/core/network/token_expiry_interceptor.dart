@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../session/session_controller.dart';
 import 'auth_api.dart';
@@ -76,6 +77,7 @@ class TokenExpiryInterceptor extends Interceptor {
   Future<void> _retryRequest(DioException err, ErrorInterceptorHandler handler) async {
     final session = sessionController.state.session;
     if (session == null) {
+      debugPrint('[TokenExpiryInterceptor] Cannot retry: no session after refresh');
       return handler.next(err);
     }
 
@@ -83,11 +85,15 @@ class TokenExpiryInterceptor extends Interceptor {
     err.requestOptions.headers.remove('Authorization');
     err.requestOptions.headers['Authorization'] = 'Bearer ${session.accessToken}';
 
+    debugPrint('[TokenExpiryInterceptor] Retrying ${err.requestOptions.method} ${err.requestOptions.path}');
+
     try {
       // Use the provided dio instance (apiDioProvider) to preserve all configs and interceptors
       final response = await _dio.fetch<dynamic>(err.requestOptions);
+      debugPrint('[TokenExpiryInterceptor] Retry succeeded with ${response.statusCode}');
       return handler.resolve(response);
     } on DioException catch (e) {
+      debugPrint('[TokenExpiryInterceptor] Retry failed: ${e.type} ${e.message}');
       return handler.next(e);
     }
   }
