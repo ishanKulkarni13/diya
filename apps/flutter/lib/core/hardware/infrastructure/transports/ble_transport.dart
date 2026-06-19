@@ -94,7 +94,9 @@ class BleTransportImpl implements DeviceTransport {
       await _rxCharacteristic!.setNotifyValue(true);
       debugPrint('Notification subscribed');
       _characteristicSub?.cancel();
-      _characteristicSub = _rxCharacteristic!.lastValueStream.listen((value) {
+      // Use onValueReceived (not lastValueStream) so every notification fires,
+      // including consecutive identical payloads such as heartbeats.
+      _characteristicSub = _rxCharacteristic!.onValueReceived.listen((value) {
         if (value.isNotEmpty) {
           debugPrint('Packet received: ${value.length} bytes');
           _incomingController.add(Uint8List.fromList(value));
