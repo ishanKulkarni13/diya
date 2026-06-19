@@ -165,34 +165,38 @@ class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
       onChanged: (bool value) async {
         final service = FlutterBackgroundService();
         if (value) {
-          debugPrint('Notification permission requested');
+          debugPrint('Foreground service requested');
           final status = await Permission.notification.request();
           
           if (!status.isGranted) {
             debugPrint('Notification permission denied');
-            // Revert switch visually by not updating state
-            setState(() {}); 
+            setState(() {
+              _isForegroundEnabled = false;
+            });
             return;
           }
-          debugPrint('Notification permission granted');
+          debugPrint('Permission granted');
           
-          setState(() {
-            _isForegroundEnabled = true;
-          });
-
           if (!await service.isRunning()) {
+            debugPrint('Service initialized');
             final diyaService = DiyaForegroundService();
             await diyaService.initialize();
             await diyaService.start();
+            
+            await Future.delayed(const Duration(seconds: 2));
           }
-        } else {
-          setState(() {
-            _isForegroundEnabled = false;
-          });
           
+          final isRunning = await service.isRunning();
+          setState(() {
+            _isForegroundEnabled = isRunning;
+          });
+        } else {
           if (await service.isRunning()) {
             service.invoke("stopService");
           }
+          setState(() {
+            _isForegroundEnabled = false;
+          });
         }
       },
     );

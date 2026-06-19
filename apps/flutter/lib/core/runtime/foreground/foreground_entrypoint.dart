@@ -23,9 +23,10 @@ void onForegroundStart(ServiceInstance service) async {
     debugPrint('No .env file found. Proceeding with defaults.');
   }
 
-  AppConfig.validate();
-
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+  await flutterLocalNotificationsPlugin.initialize(settings: initializationSettings);
 
   Future<void> showNotification(String title, String body) async {
     await flutterLocalNotificationsPlugin.show(
@@ -45,10 +46,21 @@ void onForegroundStart(ServiceInstance service) async {
 
   // Show notification immediately
   if (service is AndroidServiceInstance) {
-    if (await service.isForegroundService()) {
-      await showNotification('Diya Runtime Active', 'Starting runtime...');
-      debugPrint('Notification visible');
+    await showNotification('Diya Runtime Active', 'Starting runtime...');
+    debugPrint('Notification visible');
+  }
+
+  try {
+    AppConfig.validate();
+  } catch (e, st) {
+    debugPrint('AppConfig validation failed');
+    debugPrint(e.toString());
+    debugPrint(st.toString());
+    
+    if (service is AndroidServiceInstance) {
+      await showNotification('Diya Runtime Active', 'Runtime failed: Config Error');
     }
+    return;
   }
 
   final runtime = DiyaRuntime();
@@ -73,9 +85,7 @@ void onForegroundStart(ServiceInstance service) async {
   // Heartbeat every 30 seconds
   Timer.periodic(const Duration(seconds: 30), (timer) async {
     if (service is AndroidServiceInstance) {
-      if (await service.isForegroundService()) {
-        await showNotification('Diya Runtime Active', 'Assistive Runtime Running (Heartbeat: ${DateTime.now().toIso8601String()})');
-      }
+      await showNotification('Diya Runtime Active', 'Assistive Runtime Running (Heartbeat: ${DateTime.now().toIso8601String()})');
     }
     
     debugPrint('Heartbeat');
@@ -94,9 +104,7 @@ void onForegroundStart(ServiceInstance service) async {
     debugPrint(st.toString());
     
     if (service is AndroidServiceInstance) {
-      if (await service.isForegroundService()) {
-        await showNotification('Diya Runtime Active', 'Runtime failed');
-      }
+      await showNotification('Diya Runtime Active', 'Runtime failed');
     }
   }
 }
