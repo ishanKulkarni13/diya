@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../session/session_controller.dart';
 
 /// Proactively attaches `Authorization: Bearer <access_token>` to every
@@ -24,6 +25,9 @@ class AuthInterceptor extends Interceptor {
       // Remove first to prevent duplicates on interceptor-driven retries.
       options.headers.remove('Authorization');
       options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+      debugPrint('[AuthInterceptor] Attached token to ${options.method} ${options.path}');
+    } else {
+      debugPrint('[AuthInterceptor] WARNING: No valid session for ${options.method} ${options.path}');
     }
     handler.next(options);
   }
