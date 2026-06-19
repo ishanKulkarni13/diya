@@ -13,6 +13,9 @@ from app.db.base import Base
 # Ensure all models are imported so they are registered with Base.metadata
 from app.modules.auth.models import User, AuthSession
 from app.modules.safety.models import SafetyEvent
+from app.modules.guardian.models import GuardianRelationship, GuardianInvite
+from app.modules.location.models import CurrentLocation
+from app.modules.notifications.models import DeviceToken
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

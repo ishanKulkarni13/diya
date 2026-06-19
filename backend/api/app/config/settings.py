@@ -96,6 +96,14 @@ class ProviderSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
+class GuardianSettings(BaseSettings):
+    """Guardian relationship settings."""
+
+    invite_expiry_days: int = Field(default=7, description="Days until guardian invite expires")
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+
 class Settings:
     """
     Aggregated settings object.
@@ -110,6 +118,7 @@ class Settings:
         self.db = DatabaseSettings()
         self.observability = ObservabilitySettings()
         self.providers = ProviderSettings()
+        self.guardian = GuardianSettings()
 
 
 settings = Settings()

@@ -19,6 +19,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     roles: Mapped[list[str]] = mapped_column(JSON, default=list)
+    phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class AuthSession(Base):
