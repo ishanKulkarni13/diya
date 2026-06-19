@@ -165,7 +165,7 @@ class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
       onChanged: (bool value) async {
         final service = FlutterBackgroundService();
         if (value) {
-          debugPrint('Notification permission requested');
+          debugPrint('Foreground service requested');
           final status = await Permission.notification.request();
           
           if (!status.isGranted) {
@@ -174,16 +174,25 @@ class _DebugDevicesTabState extends ConsumerState<DebugDevicesTab> {
             setState(() {}); 
             return;
           }
-          debugPrint('Notification permission granted');
+          debugPrint('Permission granted');
           
-          setState(() {
-            _isForegroundEnabled = true;
-          });
-
           if (!await service.isRunning()) {
             final diyaService = DiyaForegroundService();
             await diyaService.initialize();
             await diyaService.start();
+            
+            // Wait to ensure service had time to start
+            await Future.delayed(const Duration(seconds: 2));
+          }
+
+          if (await service.isRunning()) {
+            setState(() {
+              _isForegroundEnabled = true;
+            });
+          } else {
+            setState(() {
+              _isForegroundEnabled = false;
+            });
           }
         } else {
           setState(() {
