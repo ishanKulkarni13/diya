@@ -15,7 +15,7 @@ void onForegroundStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
 
-  debugPrint('Foreground service started');
+  debugPrint('Service starting');
 
   try {
     await dotenv.load(fileName: '.env', isOptional: true);
@@ -25,15 +25,33 @@ void onForegroundStart(ServiceInstance service) async {
 
   AppConfig.validate();
 
-  final runtime = DiyaRuntime();
-  await runtime.boot();
-
-  debugPrint('DiyaRuntime booted');
-  debugPrint('Session initialized');
-  debugPrint('Queue initialized');
-  debugPrint('Safety initialized');
-
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  Future<void> showNotification(String title, String body) async {
+    await flutterLocalNotificationsPlugin.show(
+      id: 888,
+      title: title,
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'diya_foreground',
+          'Diya Foreground Service',
+          ongoing: true,
+          importance: Importance.low,
+        ),
+      ),
+    );
+  }
+
+  // Show notification immediately
+  if (service is AndroidServiceInstance) {
+    if (await service.isForegroundService()) {
+      await showNotification('Diya Runtime Active', 'Starting runtime...');
+      debugPrint('Notification visible');
+    }
+  }
+
+  final runtime = DiyaRuntime();
 
   if (service is AndroidServiceInstance) {
     service.on('setAsForeground').listen((event) {
@@ -50,27 +68,35 @@ void onForegroundStart(ServiceInstance service) async {
     service.stopSelf();
   });
 
+  debugPrint('Heartbeat started');
+
   // Heartbeat every 30 seconds
   Timer.periodic(const Duration(seconds: 30), (timer) async {
     if (service is AndroidServiceInstance) {
       if (await service.isForegroundService()) {
-        flutterLocalNotificationsPlugin.show(
-          id: 888,
-          title: 'Diya Runtime Active',
-          body: 'Assistive Runtime Running (Heartbeat: ${DateTime.now().toIso8601String()})',
-          notificationDetails: const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'diya_foreground',
-              'Diya Foreground Service',
-              icon: 'ic_bg_service_small',
-              ongoing: true,
-              importance: Importance.low,
-            ),
-          ),
-        );
+        await showNotification('Diya Runtime Active', 'Assistive Runtime Running (Heartbeat: ${DateTime.now().toIso8601String()})');
       }
     }
     
-    debugPrint('Foreground heartbeat');
+    debugPrint('Heartbeat');
   });
+
+  debugPrint('Runtime booting');
+  try {
+    await runtime.boot();
+    debugPrint('Runtime booted');
+    debugPrint('Session initialized');
+    debugPrint('Queue initialized');
+    debugPrint('Safety initialized');
+  } catch (e, st) {
+    debugPrint('Runtime boot failed');
+    debugPrint(e.toString());
+    debugPrint(st.toString());
+    
+    if (service is AndroidServiceInstance) {
+      if (await service.isForegroundService()) {
+        await showNotification('Diya Runtime Active', 'Runtime failed');
+      }
+    }
+  }
 }
