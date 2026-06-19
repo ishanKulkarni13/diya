@@ -26,11 +26,6 @@ void onForegroundStart(ServiceInstance service) async {
   AppConfig.validate();
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-  
-  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
-  // Wait, let's fix it
-  await flutterLocalNotificationsPlugin.initialize(settings: initializationSettings);
 
   Future<void> showNotification(String title, String body) async {
     await flutterLocalNotificationsPlugin.show(
