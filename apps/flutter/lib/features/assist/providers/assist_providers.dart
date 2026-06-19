@@ -9,7 +9,9 @@ import '../domain/models/assist_state.dart';
 import '../domain/ports/image_capture_port.dart';
 import '../domain/ports/speech_output_port.dart';
 import '../infrastructure/assist_api.dart';
+import '../infrastructure/auto_capture_adapter.dart';
 import '../infrastructure/flutter_tts_adapter.dart';
+import '../infrastructure/goggle_capture_adapter.dart';
 import '../infrastructure/image_picker_adapter.dart';
 import '../application/assist_ingress_service.dart';
 import '../../../core/hardware/providers/hardware_providers.dart';
@@ -19,8 +21,26 @@ final assistApiProvider = Provider<AssistApi>((ref) {
   return AssistApi(dio);
 });
 
-final imageCapturePortProvider = Provider<ImageCapturePort>((ref) {
+/// Primary capture source: Smart Goggle camera
+final goggleCapturePortProvider = Provider<ImageCapturePort>((ref) {
+  final deviceManager = ref.watch(deviceManagerProvider);
+  return GoggleCaptureAdapter(deviceManager: deviceManager);
+});
+
+/// Fallback capture source: Phone camera
+final phoneCapturePortProvider = Provider<ImageCapturePort>((ref) {
   return ImagePickerAdapter();
+});
+
+/// AUTO capture source: Prefers goggle, falls back to phone
+final imageCapturePortProvider = Provider<ImageCapturePort>((ref) {
+  final goggleCapture = ref.watch(goggleCapturePortProvider);
+  final phoneCapture = ref.watch(phoneCapturePortProvider);
+  
+  return AutoCaptureAdapter(
+    primarySource: goggleCapture,
+    fallbackSource: phoneCapture,
+  );
 });
 
 final speechOutputPortProvider = Provider<SpeechOutputPort>((ref) {
