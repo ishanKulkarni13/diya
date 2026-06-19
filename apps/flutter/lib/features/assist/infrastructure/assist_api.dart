@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/app_error.dart';
 import '../../../core/errors/app_error_mapper.dart';
@@ -23,6 +24,7 @@ class AssistApi {
     required String sessionId,
   }) async {
     try {
+      debugPrint('[AssistApi] Creating turn for session: $sessionId');
       final fileName = imageFile.path.split('/').last;
 
       final formData = FormData.fromMap({
@@ -42,6 +44,7 @@ class AssistApi {
         ),
       });
 
+      debugPrint('[AssistApi] Sending POST request to /assist/sessions/$sessionId/turns');
       final response = await _dio.post(
         '/assist/sessions/$sessionId/turns',
         data: formData,
@@ -52,8 +55,10 @@ class AssistApi {
         ),
       );
 
+      debugPrint('[AssistApi] Received response: ${response.statusCode}');
       return AssistResponse.fromJson(response.data);
     } catch (e) {
+      debugPrint('[AssistApi] Error: $e');
       if (e is DioException) {
         throw AppErrorMapper.fromException(e, fallbackType: AppErrorType.network);
       }

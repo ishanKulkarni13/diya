@@ -51,17 +51,22 @@ class AssistPipeline {
     onProgress(AssistStatus.capturing);
     File? imageFile;
     try {
+      debugPrint('[AssistPipeline] Starting image capture...');
       imageFile = await _imageCapturePort.captureImage();
       if (imageFile == null) {
+        debugPrint('[AssistPipeline] Image capture returned null');
         throw AppError.assist('Image capture was cancelled.', code: 'assist.capture_cancelled');
       }
+      debugPrint('[AssistPipeline] Image captured: ${imageFile.path}');
     } catch (e) {
+      debugPrint('[AssistPipeline] Image capture error: $e');
       if (e is AppError) rethrow;
       throw AppError.assist('Failed to capture image: $e', code: 'assist.capture_failed');
     }
 
     // 3. Backend Analysis
     onProgress(AssistStatus.analyzing);
+    debugPrint('[AssistPipeline] Starting backend analysis...');
     AssistResponse response;
     try {
       response = await _assistApi.createTurn(
@@ -71,7 +76,9 @@ class AssistPipeline {
         // Mocking a session ID for Phase 1
         sessionId: 'session-${DateTime.now().millisecondsSinceEpoch}',
       );
+      debugPrint('[AssistPipeline] Backend analysis complete');
     } catch (e) {
+      debugPrint('[AssistPipeline] Backend analysis error: $e');
       if (e is AppError) rethrow;
       throw AppError.network('Failed to analyze image: $e', code: 'assist.network_failed');
     } finally {
