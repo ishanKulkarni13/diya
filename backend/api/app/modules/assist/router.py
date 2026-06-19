@@ -12,9 +12,12 @@ import logging
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
+from jose import JWTError
 
+from app.api.deps import get_bearer_token
 from app.api.providers import provide_assist
 from app.config.settings import settings
+from app.config.security import decode_access_token
 
 from .schemas import AssistResponse
 from .service import AssistService
@@ -33,6 +36,7 @@ async def create_assist_turn(
     trigger_json: str = Form(...),
     client_context_json: str = Form(...),
     image_file: UploadFile = File(...),
+    token: str = Depends(get_bearer_token),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     assist_service: AssistService = Depends(provide_assist),
 ) -> AssistResponse:
@@ -42,8 +46,26 @@ async def create_assist_turn(
     Accepts a multipart request with image and context JSON,
     analyzes the image using the configured AI provider,
     and returns a structured response.
+    
+    Requires authentication.
     """
-    logger.info(f"Received assist turn for session: {session_id}")
+    # Validate token
+    try:
+        payload = decode_access_token(token)
+    except JWTError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "AUTH.TOKEN.INVALID", "message": str(error)},
+        ) from error
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "AUTH.TOKEN.INVALID", "message": "User ID not found in token"},
+        )
+
+    logger.info(f"Received assist turn for session: {session_id}", extra={"user_id": user_id})
 
     # Parse JSON form fields
     try:
