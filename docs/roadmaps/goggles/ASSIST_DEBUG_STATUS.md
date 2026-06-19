@@ -24,29 +24,43 @@
 
 ## Issues Remaining ⚠️
 
-### Issue #2: Gemini API 502 Error (IN PROGRESS)
+### Issue #2: Authentication 401 Error (INVESTIGATING)
 
 **Status**: ⚠️ **Under Investigation**
 
-**Symptoms**:
+**New Logs Show**:
 ```
-[app.modules.assist.service] Starting assist analysis
-[google_genai.models] AFC is enabled with max remote calls: 10.
-[app.modules.assist.service] Provider analysis failed
-[app.api.middleware] HTTP Request: POST /api/v1/assist/.../turns - 502 - 576ms
+POST /api/v1/assist/.../turns - 401 - 215ms  ← First attempt fails
+POST /api/v1/auth/refresh - 200 - 62ms       ← Refresh succeeds
+(No retry of original Assist request visible)
 ```
 
-**What Works**:
-- ✅ Flutter captures image (goggle or phone)
-- ✅ Image uploads to backend successfully
-- ✅ Request reaches Assist service
-- ✅ Gemini client is initialized
-- ✅ Auth token is valid
-- ✅ Session management works
+**Analysis**:
+- ✅ `AuthInterceptor` exists and is wired into `apiDioProvider`
+- ✅ `TokenExpiryInterceptor` handles 401 and refreshes token
+- ❌ But the original Assist request appears to be lost after refresh
+- ❌ This is the **exact issue** documented in Task 3 of context transfer
 
-**What Fails**:
-- ❌ Gemini API call returns 502
-- ❌ Error details not visible in logs (too generic)
+**Hypothesis**:
+1. Token is expired when Assist request is made
+2. `AuthInterceptor` attaches the expired token
+3. Backend returns 401
+4. `TokenExpiryInterceptor` refreshes successfully
+5. **But**: Multipart/FormData requests (image upload) cannot be retried because the stream is consumed
+6. Result: Assist request is lost, user sees spinner forever (until timeout)
+
+**Why This Happens**:
+- `FormData` and `MultipartFile` streams are single-use
+- After the first send attempt (with expired token), the body is consumed
+- Retry attempt finds empty body → fails silently or with error
+
+**Logging Added** (Commit `80c0a22`):
+- `[AuthInterceptor]` logs when token is attached
+- `[AuthInterceptor]` warns when no valid session exists
+- `[TokenExpiryInterceptor]` logs retry attempts
+- `[TokenExpiryInterceptor]` logs retry success/failure
+
+**Next Test**: Run Assist and check Flutter console for these new logs to confirm the flow.
 
 ---
 
