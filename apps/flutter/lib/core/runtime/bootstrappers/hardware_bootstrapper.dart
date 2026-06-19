@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'runtime_bootstrapper.dart';
 import '../../hardware/providers/hardware_providers.dart';
 import '../../../features/safety/providers/safety_controller.dart';
+import '../../../features/cane/providers/cane_providers.dart';
 
 /// Bootstraps hardware systems and ingress services independently of the UI.
 class HardwareBootstrapper extends RuntimeBootstrapper {
@@ -14,8 +15,10 @@ class HardwareBootstrapper extends RuntimeBootstrapper {
     // and device discovery mechanisms.
     container.read(deviceManagerProvider);
 
-    // Reading sosIngressServiceProvider binds the hardware event bus to the 
-    // safety controller. This used to happen in the UI (SecondEyeApp).
+    // Bind the hardware event bus to the safety controller.
     container.read(sosIngressServiceProvider);
+
+    // Start obstacle ingress so telemetry is captured independently of the UI.
+    container.read(obstacleIngressServiceProvider);
   }
 }
