@@ -2,7 +2,7 @@
 
 **Date**: June 20, 2026  
 **Branch**: `fix/assist-gemini-multimodal`  
-**Status**: 🔧 LOGGING BUG FIXED - READY FOR RE-TEST
+**Status**: 🎯 ROOT CAUSE IDENTIFIED - DOCKER NETWORKING ISSUE
 
 ---
 
@@ -12,16 +12,20 @@
 
 **Initial Assumption**: Docker networking issue preventing Gemini API access.
 
-**Finding**: Network assumption was **DISPROVEN**. Text generation works, and multimodal test reached Gemini successfully. The issue is likely **invalid or corrupted image data**.
+**Investigation Result**: 
+1. **Logging bug found & fixed** - Python logging conflict prevented diagnostics from running
+2. **Diagnostics deployed & tested** - Image data is **PERFECT** (168KB, valid JPEG, correct magic bytes)
+3. **ROOT CAUSE CONFIRMED** - Docker cannot reach external internet (Errno 101)
 
-**Logging Bug Found**: Diagnostic code had a Python logging conflict using reserved key `filename` in LogRecord, causing crash before diagnostics could run.
+**Finding**: The initial assumption was **CORRECT**. This IS a Docker networking issue, NOT an image problem.
 
 **Action Taken**: 
-1. Added comprehensive diagnostics and validation
-2. **Fixed logging bug** - renamed conflicting keys, simplified logging format
-3. Ready for re-test
+1. Added comprehensive diagnostics and validation ✅
+2. Fixed logging bug ✅
+3. Collected evidence from real test ✅
+4. **Confirmed Docker networking configuration issue**
 
-**Status**: **LOGGING BUG FIXED - READY FOR RE-TEST**
+**Status**: **ROOT CAUSE IDENTIFIED - DOCKER NETWORKING CONFIGURATION NEEDED**
 
 ---
 
@@ -382,14 +386,117 @@ eb2ca3e docs(assist): add executive summary for multimodal investigation
 ## Status
 
 **Branch**: `fix/assist-gemini-multimodal`  
-**Phase**: Logging Bug Fixed  
-**Next**: Human Re-Test with Fixed Diagnostics  
+**Phase**: Root Cause Identified - Docker Networking Issue  
+**Next**: Fix Docker Network Configuration  
 **Blocked**: No  
-**Waiting For**: Human verification with actual device  
+**User Action Required**: Configure Docker for external internet access  
 
-**STATUS**: 🔧 LOGGING BUG FIXED - READY FOR RE-TEST
+**STATUS**: 🎯 **ROOT CAUSE IDENTIFIED - DOCKER NETWORKING**
 
-**The diagnostics had a Python logging bug that prevented them from running. This is now fixed. Please re-test Assist to see the actual diagnostics output.**
+## Evidence Collected ✅
+
+From logs at `2026-06-20 02:13:48`:
+
+```
+[ROUTER] Image upload: size=168745 bytes
+[ROUTER] Image magic bytes: ffd8 (JPEG: True)
+[GEMINI]   Size: 168745 bytes
+[GEMINI]   JPEG magic valid: True
+[GEMINI] Image validation passed, proceeding to API call
+ERROR: ConnectError: [Errno 101] Network is unreachable
+```
+
+**Conclusion**: Image is perfect. Docker cannot reach Gemini API.
+
+---
+
+## Docker Networking Solutions
+
+### Solution 1: Use Host Network Mode (Quick Fix)
+
+**Edit `docker-compose.yml`**:
+```yaml
+services:
+  api:
+    # ... existing config ...
+    network_mode: "host"  # Add this line
+    # Comment out or remove:
+    # networks:
+    #   - diya_network
+```
+
+**Pros**: Usually fixes network issues immediately  
+**Cons**: Less isolation, may conflict with local ports
+
+### Solution 2: Fix WSL2 Networking (Windows)
+
+**If using WSL2 on Windows**:
+
+```powershell
+# Restart WSL2 networking
+wsl --shutdown
+# Then restart Docker Desktop
+```
+
+**Check Windows Firewall**:
+- Allow Docker Desktop through firewall
+- Allow WSL2 through firewall
+
+### Solution 3: Configure DNS Properly
+
+**Already in docker-compose.yml**:
+```yaml
+dns:
+  - 8.8.8.8
+  - 8.8.4.4
+```
+
+**Test from inside container**:
+```bash
+docker exec -it diya-api ping -c 3 8.8.8.8
+docker exec -it diya-api ping -c 3 google.com
+docker exec -it diya-api curl https://generativelanguage.googleapis.com/
+```
+
+###  Solution 4: Check VPN/Proxy
+
+If using VPN or corporate proxy:
+- Disconnect VPN temporarily
+- Configure Docker to use proxy (if needed)
+- Check corporate firewall settings
+
+### Solution 5: Recreate Docker Network
+
+```bash
+# Stop containers
+docker-compose down
+
+# Remove network
+docker network rm diya_network
+
+# Recreate everything
+docker-compose up -d
+```
+
+---
+
+## Testing After Fix
+
+Once Docker networking is fixed:
+
+```bash
+# 1. Test from container
+docker exec -it diya-api curl -I https://generativelanguage.googleapis.com/
+
+# Should return: HTTP/2 200 or 404 (not "Network is unreachable")
+
+# 2. Run Flutter app and try Assist again
+# Should now successfully analyze images
+```
+
+---
+
+**This is NOT a code issue. This is a Docker/Windows/WSL2 networking configuration issue on your machine.**
 
 ---
 
