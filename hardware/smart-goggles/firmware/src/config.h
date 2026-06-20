@@ -30,20 +30,36 @@
 
 // ============================================================================
 // CAMERA CONFIGURATION (OV5640)
-
 // ============================================================================
 
-// Image resolution (prioritize quality and text readability)
-#define CAMERA_FRAME_SIZE FRAMESIZE_XGA  // 1024x768
-#define CAMERA_JPEG_QUALITY 12  // 0-63, lower is better quality
+// Image resolution (prioritize quality and text readability for OCR)
+#define CAMERA_FRAME_SIZE    FRAMESIZE_XGA  // 1024x768
+#define CAMERA_JPEG_QUALITY  12             // 0-63, lower = better quality
 
-// Camera pins for ESP32-S3 with OV5640
-#define CAM_PIN_PWDN    -1
-#define CAM_PIN_RESET   -1
-#define CAM_PIN_XCLK    15
-#define CAM_PIN_SIOD    4
-#define CAM_PIN_SIOC    5
+// XCLK frequency
+//
+// CRITICAL: The esp32-camera driver (cam_hal.c) only enables psram_mode when:
+//   cam_obj->psram_mode = (config->xclk_freq_hz == 16000000);
+//
+// With xclk_freq_hz = 20000000 (20 MHz), psram_mode = FALSE.
+// This causes the driver to attempt DMA from internal SRAM instead of PSRAM,
+// resulting in malloc failure, partial frames, green tint, and block corruption.
+//
+// REQUIRED: XCLK must be exactly 16000000 (16 MHz) to activate psram_mode.
+// OV5640 operates correctly at 16 MHz. 20 MHz also works electrically,
+// but the psram_mode gate in cam_hal.c is the deciding constraint.
+#define CAMERA_XCLK_HZ       16000000      // 16 MHz — required for PSRAM DMA mode
 
+// Camera pins for ESP32-S3-WROOM-1-N16R8 with OV5640
+// These match the standard ESP32-S3-CAM style layout verified against
+// the Freenove ESP32-S3-WROOM reference schematic.
+#define CAM_PIN_PWDN    -1   // Power down: not connected (module has no PWDN)
+#define CAM_PIN_RESET   -1   // Reset: not connected (module has no hard reset)
+#define CAM_PIN_XCLK    15   // Master clock output to OV5640
+#define CAM_PIN_SIOD    4    // SCCB data (I2C SDA)
+#define CAM_PIN_SIOC    5    // SCCB clock (I2C SCL)
+
+// Parallel data bus D0-D7 (8-bit DVP)
 #define CAM_PIN_D7      16
 #define CAM_PIN_D6      17
 #define CAM_PIN_D5      18
@@ -53,17 +69,18 @@
 #define CAM_PIN_D1      9
 #define CAM_PIN_D0      11
 
-#define CAM_PIN_VSYNC   6
-#define CAM_PIN_HREF    7
-#define CAM_PIN_PCLK    13
+// Synchronisation signals
+#define CAM_PIN_VSYNC   6    // Vertical sync
+#define CAM_PIN_HREF    7    // Horizontal reference (HREF/HSYNC)
+#define CAM_PIN_PCLK    13   // Pixel clock
 
 // Camera initialization retry configuration
-#define CAMERA_INIT_RETRIES 3
+#define CAMERA_INIT_RETRIES        3
 #define CAMERA_INIT_RETRY_DELAY_MS 1000
 
-// Capture timeout
-#define CAMERA_CAPTURE_TIMEOUT_MS 5000
-#define CAMERA_CAPTURE_RETRIES 2
+// Capture configuration
+#define CAMERA_CAPTURE_TIMEOUT_MS  5000
+#define CAMERA_CAPTURE_RETRIES     2
 
 // ============================================================================
 // BUTTON CONFIGURATION

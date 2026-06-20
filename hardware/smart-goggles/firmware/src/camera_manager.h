@@ -22,7 +22,15 @@
 //   grab_mode    = CAMERA_GRAB_LATEST   — always returns the newest frame
 //   frame_size   = FRAMESIZE_XGA        — 1024x768, suitable for OCR and text reading
 //   jpeg_quality = 12                   — high quality (0=best, 63=worst)
-//   xclk_freq_hz = 20000000             — 20 MHz XCLK, standard for OV2640/OV5640
+//   xclk_freq_hz = 16000000             — 16 MHz REQUIRED for PSRAM DMA mode
+//
+// CRITICAL — XCLK and PSRAM mode:
+//   The esp32-camera driver (cam_hal.c) has this exact check:
+//     cam_obj->psram_mode = (config->xclk_freq_hz == 16000000);
+//   When psram_mode is false, DMA buffers are allocated from internal SRAM.
+//   XGA (1024x768) at 2 bytes/px = ~1.5 MB per frame — far exceeding internal
+//   SRAM, causing malloc failure, partial frames, green tint, and corruption.
+//   XCLK MUST be exactly 16 MHz to activate PSRAM DMA mode.
 //
 // DRAM fallback is intentionally NOT implemented. Missing PSRAM is a fatal
 // bringup error for this hardware family. See main.cpp printBootDiagnostics().
@@ -60,7 +68,7 @@ private:
         // Clock
         config.ledc_channel  = LEDC_CHANNEL_0;
         config.ledc_timer    = LEDC_TIMER_0;
-        config.xclk_freq_hz  = 20000000;    // 20 MHz
+        config.xclk_freq_hz  = CAMERA_XCLK_HZ;   // 16 MHz — REQUIRED for psram_mode in cam_hal.c
 
         // Image format and quality
         config.pixel_format  = PIXFORMAT_JPEG;
@@ -110,12 +118,22 @@ private:
         Serial.println("[CAM]  ── Sensor Identity ──────────────────────");
         Serial.printf( "[CAM]  Sensor       : %s\n",   sensorName);
         Serial.printf( "[CAM]  PID          : 0x%04X\n", s->id.PID);
-        Serial.printf( "[CAM]  MID          : 0x%04X\n", s->id.MIDH << 8 | s->id.MIDL);
+        Serial.printf( "[CAM]  MIDH         : 0x%02X\n", s->id.MIDH);
+        Serial.printf( "[CAM]  MIDL         : 0x%02X\n", s->id.MIDL);
+        Serial.printf( "[CAM]  MID (joined) : 0x%04X\n", s->id.MIDH << 8 | s->id.MIDL);
         Serial.printf( "[CAM]  Resolution   : %s\n",   resStr);
         Serial.printf( "[CAM]  JPEG Quality : %d (0=best, 63=worst)\n", CAMERA_JPEG_QUALITY);
+        Serial.printf( "[CAM]  XCLK         : %d Hz\n", CAMERA_XCLK_HZ);
+        Serial.printf( "[CAM]  PSRAM mode   : %s (xclk==16MHz: %s)\n",
+                       CAMERA_XCLK_HZ == 16000000 ? "ENABLED" : "DISABLED — IMAGE WILL BE CORRUPT",
+                       CAMERA_XCLK_HZ == 16000000 ? "YES" : "NO — FIX CAMERA_XCLK_HZ");
         Serial.printf( "[CAM]  FB Count     : 2\n");
         Serial.printf( "[CAM]  FB Location  : PSRAM\n");
         Serial.printf( "[CAM]  Grab Mode    : LATEST\n");
+        Serial.printf( "[CAM]  Free Heap    : %u bytes\n", ESP.getFreeHeap());
+        Serial.printf( "[CAM]  Free PSRAM   : %u bytes\n", ESP.getFreePsram());
+        Serial.printf( "[CAM]  Largest PSRAM blk : %u bytes\n",
+                       heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
         Serial.println("[CAM]  ─────────────────────────────────────────");
     }
 
@@ -166,6 +184,21 @@ public:
             _initialized = false;
             return false;
         }
+
+        // XCLK check: cam_hal.c gates psram_mode on xclk_freq_hz == 16000000.
+        // If XCLK != 16 MHz, psram_mode = false, DMA uses internal SRAM,
+        // malloc fails at XGA resolution, and the result is a corrupt/green image.
+        if (CAMERA_XCLK_HZ != 16000000) {
+            Serial.println("[CAM]  ERROR: CAMERA_XCLK_HZ is not 16000000.");
+            Serial.printf( "[CAM]  Current value: %d Hz\n", CAMERA_XCLK_HZ);
+            Serial.println("[CAM]  cam_hal.c only activates psram_mode when xclk == 16MHz.");
+            Serial.println("[CAM]  Without psram_mode, DMA buffers allocate from internal SRAM.");
+            Serial.println("[CAM]  At XGA resolution this causes malloc failure and image corruption.");
+            Serial.println("[CAM]  Set CAMERA_XCLK_HZ = 16000000 in config.h.");
+            _initialized = false;
+            return false;
+        }
+        Serial.printf("[CAM]  XCLK: %d Hz — psram_mode WILL be active\n", CAMERA_XCLK_HZ);
 
         size_t psramFreeBefore = ESP.getFreePsram();
         Serial.printf("[CAM]  PSRAM free before init : %u bytes\n", psramFreeBefore);
@@ -275,10 +308,21 @@ public:
             size_t heapAfter  = ESP.getFreeHeap();
             size_t psramAfter = ESP.getFreePsram();
 
-            Serial.printf("[CAPTURE] %ux%u\n",       fb->width, fb->height);
-            Serial.printf("[CAPTURE] %u bytes\n",    fb->len);
-            Serial.printf("[CAPTURE] %lu ms\n",      duration);
-            Serial.printf("[CAPTURE] Post-capture heap=%u  psram=%u\n", heapAfter, psramAfter);
+            const char* fmtStr = "UNKNOWN";
+            switch (fb->format) {
+                case PIXFORMAT_JPEG:     fmtStr = "JPEG";    break;
+                case PIXFORMAT_YUV422:   fmtStr = "YUV422";  break;
+                case PIXFORMAT_GRAYSCALE:fmtStr = "GRAY";    break;
+                case PIXFORMAT_RGB565:   fmtStr = "RGB565";  break;
+                default: break;
+            }
+
+            Serial.printf("[CAPTURE] Resolution  : %ux%u\n",   fb->width, fb->height);
+            Serial.printf("[CAPTURE] Format      : %s\n",      fmtStr);
+            Serial.printf("[CAPTURE] Size        : %u bytes\n", fb->len);
+            Serial.printf("[CAPTURE] Duration    : %lu ms\n",   duration);
+            Serial.printf("[CAPTURE] Heap after  : %u bytes\n", heapAfter);
+            Serial.printf("[CAPTURE] PSRAM after : %u bytes\n", psramAfter);
             Serial.println("[CAPTURE] SUCCESS");
 
             return fb;
