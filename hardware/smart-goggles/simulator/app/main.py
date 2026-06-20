@@ -372,48 +372,178 @@ def _request_id() -> str:
 
 
 def _capture_webcam_jpeg(camera_index: int) -> bytes:
-    """Try to capture a JPEG frame from the webcam.
+    """Try to capture a JPEG frame from the webcam with comprehensive error handling.
 
-    Returns the JPEG bytes on success, raises RuntimeError on failure.
+    Returns the JPEG bytes on success, raises RuntimeError with detailed message on failure.
+    
+    Edge cases handled:
+    - OpenCV not installed
+    - Camera not found / doesn't exist
+    - Camera in use by another application
+    - Camera hardware error
+    - Permission denied
+    - Empty frame / corrupted frame
+    - JPEG encoding failure
+    - Memory errors
+    - Multiple camera indices fallback
     """
+    # Edge Case 1: OpenCV not installed
     if cv2 is None:
-        raise RuntimeError("OpenCV not available. Run 'uv sync' to install opencv-python.")
+        raise RuntimeError(
+            "OpenCV (cv2) not available. "
+            "Install it by running: cd hardware/smart-goggles/simulator && uv sync"
+        )
     
-    # Try to open the camera
-    logger.info(f"[CAMERA] Attempting to open camera {camera_index}")
-    camera = cv2.VideoCapture(camera_index)
+    camera = None
+    last_error = None
     
-    if not camera.isOpened():
-        camera.release()
-        # Try alternative camera index if default fails
-        logger.warning(f"[CAMERA] Failed to open camera {camera_index}, trying camera 0")
-        if camera_index != 0:
-            camera = cv2.VideoCapture(0)
+    # Try multiple camera indices (0, 1, 2) to handle different systems
+    camera_indices_to_try = [camera_index]
+    if camera_index != 0:
+        camera_indices_to_try.append(0)
+    if camera_index != 1 and 1 not in camera_indices_to_try:
+        camera_indices_to_try.append(1)
+    
+    for idx in camera_indices_to_try:
+        try:
+            logger.info(f"[CAMERA] Attempting to open camera at index {idx}")
+            
+            # Edge Case 2: Camera doesn't exist or can't be opened
+            camera = cv2.VideoCapture(idx)
+            
+            # Wait a bit for camera to initialize (some cameras need time)
             if not camera.isOpened():
+                logger.warning(f"[CAMERA] Camera {idx} didn't open immediately, waiting 100ms...")
+                time.sleep(0.1)
+            
+            # Edge Case 3: Check if camera actually opened
+            if not camera.isOpened():
+                last_error = f"Camera {idx} failed to open (may be in use or doesn't exist)"
+                logger.warning(f"[CAMERA] {last_error}")
                 camera.release()
-                raise RuntimeError(f"Failed to open webcam at index {camera_index} or 0")
-        else:
-            raise RuntimeError(f"Failed to open webcam at index {camera_index}")
+                camera = None
+                continue
+            
+            logger.info(f"[CAMERA] Camera {idx} opened successfully")
+            
+            # Edge Case 4: Try to set camera properties for better capture
+            try:
+                # Set resolution (helps with some buggy cameras)
+                camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                # Disable autofocus (can cause delays)
+                camera.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+            except Exception as prop_error:
+                # Non-critical, continue anyway
+                logger.debug(f"[CAMERA] Could not set camera properties: {prop_error}")
+            
+            # Edge Case 5: Read frame with retry logic
+            max_read_attempts = 3
+            frame = None
+            for attempt in range(max_read_attempts):
+                logger.info(f"[CAMERA] Reading frame (attempt {attempt + 1}/{max_read_attempts})")
+                ok, frame = camera.read()
+                
+                if ok and frame is not None:
+                    # Edge Case 6: Validate frame is not empty
+                    if frame.size == 0:
+                        logger.warning(f"[CAMERA] Frame is empty on attempt {attempt + 1}")
+                        time.sleep(0.1)
+                        continue
+                    
+                    # Edge Case 7: Validate frame dimensions
+                    if len(frame.shape) != 3 or frame.shape[2] != 3:
+                        logger.warning(f"[CAMERA] Frame has invalid shape: {frame.shape}")
+                        time.sleep(0.1)
+                        continue
+                    
+                    logger.info(f"[CAMERA] Frame captured successfully: shape={frame.shape}, dtype={frame.dtype}")
+                    break
+                else:
+                    logger.warning(f"[CAMERA] Failed to read frame on attempt {attempt + 1}")
+                    time.sleep(0.1)
+            
+            camera.release()
+            
+            # Edge Case 8: All read attempts failed
+            if frame is None or not ok:
+                last_error = f"Failed to read frame from camera {idx} after {max_read_attempts} attempts"
+                logger.error(f"[CAMERA] {last_error}")
+                continue
+            
+            # Edge Case 9: Encode to JPEG with error handling
+            try:
+                logger.info(f"[CAMERA] Encoding frame to JPEG (quality={JPEG_QUALITY})")
+                encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
+                encode_ok, buffer = cv2.imencode(".jpg", frame, encode_params)
+                
+                if not encode_ok or buffer is None:
+                    raise RuntimeError("JPEG encoding returned failure status")
+                
+                jpeg_bytes = buffer.tobytes()
+                
+                # Edge Case 10: Validate JPEG output
+                if len(jpeg_bytes) == 0:
+                    raise RuntimeError("JPEG encoding produced empty output")
+                
+                # Edge Case 11: Validate JPEG magic bytes
+                if not _jpeg_magic_ok(jpeg_bytes):
+                    raise RuntimeError(
+                        f"JPEG encoding produced invalid output (magic bytes: {jpeg_bytes[:2].hex()})"
+                    )
+                
+                logger.info(f"[CAMERA] JPEG encoded successfully: {len(jpeg_bytes)} bytes")
+                return jpeg_bytes
+                
+            except Exception as encode_error:
+                last_error = f"JPEG encoding failed on camera {idx}: {encode_error}"
+                logger.error(f"[CAMERA] {last_error}")
+                continue
+            
+        except PermissionError as perm_error:
+            # Edge Case 12: Permission denied (common on Linux/Mac)
+            last_error = f"Permission denied for camera {idx}: {perm_error}"
+            logger.error(f"[CAMERA] {last_error}")
+            if camera:
+                camera.release()
+            continue
+            
+        except MemoryError as mem_error:
+            # Edge Case 13: Out of memory
+            last_error = f"Out of memory while accessing camera {idx}: {mem_error}"
+            logger.error(f"[CAMERA] {last_error}")
+            if camera:
+                camera.release()
+            continue
+            
+        except Exception as general_error:
+            # Edge Case 14: Any other unexpected error
+            last_error = f"Unexpected error with camera {idx}: {type(general_error).__name__}: {general_error}"
+            logger.error(f"[CAMERA] {last_error}")
+            if camera:
+                camera.release()
+            continue
+        finally:
+            # Edge Case 15: Always release camera resource
+            if camera is not None:
+                try:
+                    camera.release()
+                except Exception as release_error:
+                    logger.warning(f"[CAMERA] Error releasing camera: {release_error}")
     
-    logger.info(f"[CAMERA] Camera opened successfully")
-    
-    # Read frame
-    ok, frame = camera.read()
-    camera.release()
-    
-    if not ok or frame is None:
-        raise RuntimeError("Failed to read frame from webcam")
-    
-    logger.info(f"[CAMERA] Frame captured: {frame.shape}")
-    
-    # Encode to JPEG
-    encode_ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
-    if not encode_ok:
-        raise RuntimeError("Failed to encode frame to JPEG")
-    
-    jpeg_bytes = buffer.tobytes()
-    logger.info(f"[CAMERA] JPEG encoded: {len(jpeg_bytes)} bytes")
-    return jpeg_bytes
+    # Edge Case 16: All camera indices failed
+    error_message = f"Failed to capture from any camera (tried indices: {camera_indices_to_try}). "
+    if last_error:
+        error_message += f"Last error: {last_error}. "
+    error_message += (
+        "Troubleshooting:\n"
+        "1. Make sure your camera is connected\n"
+        "2. Close other applications using the camera (Zoom, Teams, Skype, etc.)\n"
+        "3. Check camera permissions in system settings\n"
+        "4. Try running: lsusb (Linux) or system_profiler SPCameraDataType (Mac)\n"
+        "5. On Linux, check: ls -la /dev/video*"
+    )
+    raise RuntimeError(error_message)
 
 
 @app.get("/")
@@ -488,18 +618,76 @@ async def command(req: CommandRequest) -> JSONResponse:
 async def capture_raw(request: Request, camera_index: int = CAMERA_INDEX) -> Response:
     """Return a raw JPEG bytes payload for snapshot capture.
 
-    Attempts to capture from the laptop webcam. If capture fails, raises an error
-    with details about what went wrong.
+    Attempts to capture from the laptop webcam with comprehensive error handling.
+    If capture fails, raises detailed error explaining the issue and suggesting solutions.
+    
+    Query Parameters:
+        camera_index: Camera device index (default: 0). Try 1 or 2 if default fails.
+    
+    Returns:
+        Response with JPEG image bytes
+        
+    Raises:
+        HTTPException 422: Invalid camera_index parameter
+        HTTPException 503: Camera capture failed (with detailed error message)
+        HTTPException 500: Invalid JPEG produced (shouldn't happen)
+        HTTPException 408: Capture timeout (took too long)
     """
     req_id = _request_id()
     client_host = request.client.host if request.client else "unknown"
+    
+    # Validate camera_index parameter
     if camera_index < 0:
-        raise HTTPException(status_code=422, detail="camera_index must be >= 0")
-
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid camera_index: {camera_index}. Must be >= 0. Try 0, 1, or 2."
+        )
+    
+    if camera_index > 10:
+        logger.warning(f"[CAPTURE] Unusual camera_index requested: {camera_index}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Camera index {camera_index} seems too high. Valid range is typically 0-2."
+        )
+    
+    logger.info(f"[CAPTURE] Starting capture request {req_id} from {client_host} (camera_index={camera_index})")
+    
     try:
-        logger.info(f"[CAPTURE] Starting capture request {req_id} from {client_host}")
-        payload = _capture_webcam_jpeg(camera_index)
+        # Edge Case: Capture takes too long (timeout after 10 seconds)
+        import asyncio
+        
+        async def capture_with_timeout():
+            # Run blocking camera capture in thread pool to avoid blocking event loop
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(None, _capture_webcam_jpeg, camera_index)
+        
+        try:
+            payload = await asyncio.wait_for(capture_with_timeout(), timeout=10.0)
+        except asyncio.TimeoutError:
+            error_msg = (
+                f"Camera capture timed out after 10 seconds (camera_index={camera_index}). "
+                "This usually means:\n"
+                "1. Camera is frozen or unresponsive\n"
+                "2. Camera driver issue\n"
+                "3. Try a different camera_index\n"
+                "4. Restart your computer\n"
+                "5. Try unplugging and replugging external camera"
+            )
+            logger.error(f"[CAPTURE] {error_msg}")
+            _log(
+                "capture.raw.timeout",
+                request_id=req_id,
+                client=client_host,
+                camera_index=camera_index,
+            )
+            raise HTTPException(status_code=408, detail=error_msg)
+        
         is_fallback = False
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+        
     except Exception as exc:  # noqa: BLE001
         error_msg = str(exc)
         logger.error(f"[CAPTURE] Webcam capture failed: {error_msg}")
@@ -511,27 +699,42 @@ async def capture_raw(request: Request, camera_index: int = CAMERA_INDEX) -> Res
             camera_index=camera_index,
             error=error_msg,
         )
-        # Raise error with detailed message instead of returning fallback
-        raise HTTPException(
-            status_code=503,
-            detail=f"Webcam capture failed: {error_msg}. "
-                   f"Make sure your camera is connected and not in use by another application. "
-                   f"If OpenCV is not installed, run: uv sync"
+        
+        # Provide helpful error message with troubleshooting steps
+        detail_msg = (
+            f"Camera capture failed: {error_msg}\n\n"
+            "Common solutions:\n"
+            "1. Install OpenCV: cd hardware/smart-goggles/simulator && uv sync\n"
+            "2. Close apps using camera: Zoom, Teams, Skype, etc.\n"
+            "3. Check camera permissions in System Settings\n"
+            "4. Try different camera_index: ?camera_index=1 or ?camera_index=2\n"
+            "5. Restart your computer\n"
+            "6. For external webcam: unplug and replug\n\n"
+            f"See: hardware/smart-goggles/simulator/CAMERA_TROUBLESHOOTING.md"
         )
+        
+        raise HTTPException(status_code=503, detail=detail_msg)
 
+    # Log successful capture
     _log(
-        "capture.raw.requested",
+        "capture.raw.success",
         request_id=req_id,
         client=client_host,
         method=request.method,
         camera_index=camera_index,
         size=len(payload),
-        fallback=is_fallback,
     )
+    
+    # Final validation: check JPEG magic bytes
     if not _jpeg_magic_ok(payload):
-        _log("capture.raw.invalid", request_id=req_id, size=len(payload), hex_prefix=payload[:8].hex())
-        raise HTTPException(status_code=500, detail="Invalid JPEG payload configured in simulator")
-    hex_prefix = payload[:16].hex()
+        hex_prefix = payload[:8].hex() if len(payload) >= 8 else payload.hex()
+        _log("capture.raw.invalid_jpeg", request_id=req_id, size=len(payload), hex_prefix=hex_prefix)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Invalid JPEG produced (size={len(payload)}, magic={hex_prefix}). This is a bug."
+        )
+    
+    hex_prefix = payload[:16].hex() if len(payload) >= 16 else payload.hex()
     logger.info(
         "capture.raw.respond",
         extra={
@@ -540,16 +743,18 @@ async def capture_raw(request: Request, camera_index: int = CAMERA_INDEX) -> Res
             "hex_prefix": hex_prefix,
             "client": client_host,
             "camera_index": camera_index,
-            "fallback": is_fallback,
         },
     )
+    
+    # Return JPEG with appropriate headers
     headers = {
-        "Cache-Control": "no-store",
+        "Cache-Control": "no-store",  # Don't cache (always fresh capture)
         "Content-Length": str(len(payload)),
         "X-Image-Format": "jpeg",
         "X-Image-Bytes": str(len(payload)),
         "X-Request-Id": req_id,
-        "X-Fallback": "false",
+        "X-Camera-Index": str(camera_index),
+        "X-Capture-Time": datetime.now(tz=timezone.utc).isoformat(),
     }
     return Response(content=payload, media_type="image/jpeg", headers=headers)
 
