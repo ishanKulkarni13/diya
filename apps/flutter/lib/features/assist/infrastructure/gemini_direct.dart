@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -70,18 +71,60 @@ Respond in JSON format:
       final text = response.text ?? '';
       debugPrint('[GeminiDirect] Response: ${text.substring(0, text.length > 100 ? 100 : text.length)}...');
 
-      // Parse JSON response
-      // For demo, just return a simple response
+      // Parse JSON response to extract structured data
+      String spokenText = 'Unable to analyze the image.';
+      String displayText = 'Analysis failed';
+      List<String> hazards = [];
+      List<String> detectedObjects = [];
+      double confidence = 0.0;
+
+      try {
+        // Clean up the response (remove markdown code blocks if present)
+        String cleanedText = text.trim();
+        if (cleanedText.startsWith('```json')) {
+          cleanedText = cleanedText.substring(7);
+        }
+        if (cleanedText.startsWith('```')) {
+          cleanedText = cleanedText.substring(3);
+        }
+        if (cleanedText.endsWith('```')) {
+          cleanedText = cleanedText.substring(0, cleanedText.length - 3);
+        }
+        cleanedText = cleanedText.trim();
+
+        // Parse the JSON
+        final jsonResponse = jsonDecode(cleanedText) as Map<String, dynamic>;
+        
+        spokenText = jsonResponse['spoken_text'] as String? ?? spokenText;
+        displayText = jsonResponse['display_text'] as String? ?? displayText;
+        confidence = (jsonResponse['confidence'] as num?)?.toDouble() ?? 0.85;
+        
+        if (jsonResponse['hazards'] is List) {
+          hazards = (jsonResponse['hazards'] as List).map((e) => e.toString()).toList();
+        }
+        if (jsonResponse['detected_objects'] is List) {
+          detectedObjects = (jsonResponse['detected_objects'] as List).map((e) => e.toString()).toList();
+        }
+
+        debugPrint('[GeminiDirect] Parsed - Spoken: ${spokenText.substring(0, spokenText.length > 50 ? 50 : spokenText.length)}...');
+      } catch (parseError) {
+        debugPrint('[GeminiDirect] JSON parse failed: $parseError');
+        // Fallback: use raw text if JSON parsing fails
+        spokenText = text.length > 200 ? text.substring(0, 200) : text;
+        displayText = text.length > 100 ? text.substring(0, 100) : text;
+      }
+
+      // Return structured response
       return AssistResponse(
         turnId: DateTime.now().millisecondsSinceEpoch.toString(),
         sessionId: sessionId,
         status: 'completed',
-        spokenText: text,
-        displayText: text.length > 100 ? text.substring(0, 100) : text,
-        confidence: 0.85,
+        spokenText: spokenText,
+        displayText: displayText,
+        confidence: confidence,
         followUpMode: 'available',
-        hazards: const [],
-        detectedObjects: const [],
+        hazards: hazards,
+        detectedObjects: detectedObjects,
         providerName: 'gemini-direct',
         modelName: _model,
         latencyMs: 1000,
