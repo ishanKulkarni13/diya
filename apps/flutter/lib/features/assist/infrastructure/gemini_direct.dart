@@ -13,7 +13,7 @@ class GeminiDirect {
   // Read API key from api_keys.dart (gitignored)
   static String get _apiKey => ApiKeys.geminiApiKey;
   
-  static const String _model = 'gemini-2.0-flash-exp';
+  static const String _model = 'gemini-3.5-flash'; // dont change this
 
   /// Call Gemini directly with an image
   static Future<AssistResponse> analyzeImage({
