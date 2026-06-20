@@ -2,7 +2,7 @@
 
 **Date**: June 20, 2026  
 **Branch**: `fix/assist-gemini-multimodal`  
-**Status**: 🔬 DIAGNOSTICS DEPLOYED - AWAITING HUMAN VERIFICATION
+**Status**: 🔧 LOGGING BUG FIXED - READY FOR RE-TEST
 
 ---
 
@@ -14,9 +14,14 @@
 
 **Finding**: Network assumption was **DISPROVEN**. Text generation works, and multimodal test reached Gemini successfully. The issue is likely **invalid or corrupted image data**.
 
-**Action Taken**: Added comprehensive diagnostics and validation to identify root cause through evidence collection.
+**Logging Bug Found**: Diagnostic code had a Python logging conflict using reserved key `filename` in LogRecord, causing crash before diagnostics could run.
 
-**Status**: **READY FOR HUMAN VERIFICATION** - Deploy and test with actual device to collect diagnostic logs.
+**Action Taken**: 
+1. Added comprehensive diagnostics and validation
+2. **Fixed logging bug** - renamed conflicting keys, simplified logging format
+3. Ready for re-test
+
+**Status**: **LOGGING BUG FIXED - READY FOR RE-TEST**
 
 ---
 
@@ -262,14 +267,19 @@ ERROR: Gemini APIError: code=400, message=Unable to process input image
 ## Commits Made
 
 ```
+8b1ae83 fix(assist): avoid logging reserved keys in router and service
+eb2ca3e docs(assist): add executive summary for multimodal investigation
 4a14e40 docs(assist): add comprehensive testing procedures
 37c6816 debug(assist): add comprehensive image diagnostics and validation
 ```
 
+**Issue Found**: Python logging error - `filename` is a reserved key in LogRecord  
+**Fix Applied**: Renamed to `image_filename` and simplified logging to use f-strings
+
 **Files Changed**:
 - `backend/api/app/modules/assist/providers/gemini.py` - Added diagnostics
-- `backend/api/app/modules/assist/router.py` - Added image validation
-- `backend/api/app/modules/assist/service.py` - Added logging
+- `backend/api/app/modules/assist/router.py` - Added validation, **fixed logging**
+- `backend/api/app/modules/assist/service.py` - Added logging, **fixed logging**
 - `backend/api/scripts/test_multimodal.py` - Created test script
 - `docs/roadmaps/goggles/ASSIST_MULTIMODAL_INVESTIGATION.md` - Investigation
 - `docs/roadmaps/goggles/ASSIST_MULTIMODAL_TESTING.md` - Testing guide
@@ -372,14 +382,14 @@ ERROR: Gemini APIError: code=400, message=Unable to process input image
 ## Status
 
 **Branch**: `fix/assist-gemini-multimodal`  
-**Phase**: Diagnostics Deployed  
-**Next**: Human Testing & Evidence Collection  
+**Phase**: Logging Bug Fixed  
+**Next**: Human Re-Test with Fixed Diagnostics  
 **Blocked**: No  
 **Waiting For**: Human verification with actual device  
 
-**STATUS**: 🔬 READY FOR HUMAN VERIFICATION
+**STATUS**: 🔧 LOGGING BUG FIXED - READY FOR RE-TEST
 
-**This is an active investigation. The issue is NOT resolved until human testing confirms Assist works end-to-end.**
+**The diagnostics had a Python logging bug that prevented them from running. This is now fixed. Please re-test Assist to see the actual diagnostics output.**
 
 ---
 
