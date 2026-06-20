@@ -80,6 +80,8 @@ class AssistService:
                 "session_id": session_id,
                 "turn_id": turn_id,
                 "intent_type": intent_type,
+                "image_size_bytes": len(image_bytes),
+                "mime_type": mime_type,
             },
         )
 
