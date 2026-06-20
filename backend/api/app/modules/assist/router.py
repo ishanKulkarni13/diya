@@ -95,21 +95,13 @@ async def create_assist_turn(
     
     # Log image upload diagnostics
     logger.info(
-        "[ROUTER] Image upload diagnostics:",
-        extra={
-            "session_id": session_id,
-            "filename": image_file.filename,
-            "declared_content_type": image_file.content_type,
-            "inferred_mime_type": mime_type,
-            "size_bytes": len(image_bytes),
-        },
+        f"[ROUTER] Image upload: filename={image_file.filename}, "
+        f"content_type={image_file.content_type}, size={len(image_bytes)} bytes"
     )
     
     if len(image_bytes) >= 2:
-        logger.info(
-            f"[ROUTER] Image magic bytes: {image_bytes[:2].hex()} "
-            f"(JPEG: {image_bytes.startswith(b'\\xff\\xd8')})"
-        )
+        is_jpeg = image_bytes.startswith(b'\xff\xd8')
+        logger.info(f"[ROUTER] Image magic bytes: {image_bytes[:2].hex()} (JPEG: {is_jpeg})")
     else:
         logger.error(f"[ROUTER] Image too small: {len(image_bytes)} bytes")
     
