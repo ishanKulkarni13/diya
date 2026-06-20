@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../domain/models/assist_response.dart';
@@ -8,7 +9,18 @@ import '../domain/models/assist_response.dart';
 /// HOTFIX: Direct Gemini API call from Flutter
 /// This bypasses the backend due to Docker networking issues
 class GeminiDirect {
-  static const String _apiKey = 'AIzaSyDiRr1R6IuJXcx9-1raPbQPNQ3XBHy2ZA8'; // TODO: Move to env
+  // Read API key from .env file (never commit the actual key!)
+  static String get _apiKey {
+    final key = dotenv.env['GEMINI_API_KEY'];
+    if (key == null || key.trim().isEmpty || key == 'your-api-key-here') {
+      throw StateError(
+        'GEMINI_API_KEY not found in .env file. '
+        'Please add your API key to apps/flutter/.env'
+      );
+    }
+    return key.trim();
+  }
+  
   static const String _model = 'gemini-2.0-flash-exp';
 
   /// Call Gemini directly with an image
