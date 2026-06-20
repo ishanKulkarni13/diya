@@ -374,23 +374,46 @@ def _request_id() -> str:
 def _capture_webcam_jpeg(camera_index: int) -> bytes:
     """Try to capture a JPEG frame from the webcam.
 
-    Returns the JPEG bytes on success, or *None* if the webcam is not
-    available so that the caller can fall back gracefully.
+    Returns the JPEG bytes on success, raises RuntimeError on failure.
     """
     if cv2 is None:
         raise RuntimeError("OpenCV not available. Run 'uv sync' to install opencv-python.")
+    
+    # Try to open the camera
+    logger.info(f"[CAMERA] Attempting to open camera {camera_index}")
     camera = cv2.VideoCapture(camera_index)
+    
     if not camera.isOpened():
         camera.release()
-        raise RuntimeError("Failed to open webcam")
+        # Try alternative camera index if default fails
+        logger.warning(f"[CAMERA] Failed to open camera {camera_index}, trying camera 0")
+        if camera_index != 0:
+            camera = cv2.VideoCapture(0)
+            if not camera.isOpened():
+                camera.release()
+                raise RuntimeError(f"Failed to open webcam at index {camera_index} or 0")
+        else:
+            raise RuntimeError(f"Failed to open webcam at index {camera_index}")
+    
+    logger.info(f"[CAMERA] Camera opened successfully")
+    
+    # Read frame
     ok, frame = camera.read()
     camera.release()
+    
     if not ok or frame is None:
-        raise RuntimeError("Failed to read webcam frame")
+        raise RuntimeError("Failed to read frame from webcam")
+    
+    logger.info(f"[CAMERA] Frame captured: {frame.shape}")
+    
+    # Encode to JPEG
     encode_ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
     if not encode_ok:
-        raise RuntimeError("Failed to encode webcam frame")
-    return buffer.tobytes()
+        raise RuntimeError("Failed to encode frame to JPEG")
+    
+    jpeg_bytes = buffer.tobytes()
+    logger.info(f"[CAMERA] JPEG encoded: {len(jpeg_bytes)} bytes")
+    return jpeg_bytes
 
 
 @app.get("/")
@@ -465,30 +488,36 @@ async def command(req: CommandRequest) -> JSONResponse:
 async def capture_raw(request: Request, camera_index: int = CAMERA_INDEX) -> Response:
     """Return a raw JPEG bytes payload for snapshot capture.
 
-    If the webcam is unavailable (no OpenCV, no camera device, etc.) the
-    endpoint returns a solid-red fallback JPEG instead of failing with 503.
-    This ensures the phone app always receives a valid image.
+    Attempts to capture from the laptop webcam. If capture fails, raises an error
+    with details about what went wrong.
     """
     req_id = _request_id()
     client_host = request.client.host if request.client else "unknown"
     if camera_index < 0:
         raise HTTPException(status_code=422, detail="camera_index must be >= 0")
 
-    is_fallback = False
     try:
+        logger.info(f"[CAPTURE] Starting capture request {req_id} from {client_host}")
         payload = _capture_webcam_jpeg(camera_index)
+        is_fallback = False
     except Exception as exc:  # noqa: BLE001
+        error_msg = str(exc)
+        logger.error(f"[CAPTURE] Webcam capture failed: {error_msg}")
         _log(
             "capture.raw.webcam_unavailable",
             request_id=req_id,
             client=client_host,
             method=request.method,
             camera_index=camera_index,
-            error=str(exc),
+            error=error_msg,
         )
-        # Return the pre-generated red fallback image instead of 503.
-        payload = _FALLBACK_RED_JPEG
-        is_fallback = True
+        # Raise error with detailed message instead of returning fallback
+        raise HTTPException(
+            status_code=503,
+            detail=f"Webcam capture failed: {error_msg}. "
+                   f"Make sure your camera is connected and not in use by another application. "
+                   f"If OpenCV is not installed, run: uv sync"
+        )
 
     _log(
         "capture.raw.requested",
@@ -520,7 +549,7 @@ async def capture_raw(request: Request, camera_index: int = CAMERA_INDEX) -> Res
         "X-Image-Format": "jpeg",
         "X-Image-Bytes": str(len(payload)),
         "X-Request-Id": req_id,
-        "X-Fallback": str(is_fallback).lower(),
+        "X-Fallback": "false",
     }
     return Response(content=payload, media_type="image/jpeg", headers=headers)
 
