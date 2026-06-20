@@ -6,6 +6,26 @@
 
 ---
 
+## ⚠️ BEFORE YOU START: Add Your API Key
+
+### Open: `apps/flutter/.env`
+
+**Find:**
+```env
+GEMINI_API_KEY=your-api-key-here
+```
+
+**Replace with your actual key:**
+```env
+GEMINI_API_KEY=AIzaSyD...your-key-here
+```
+
+**Get key from**: https://aistudio.google.com/app/apikey
+
+✅ **Don't worry**: This file is git-ignored, won't be committed!
+
+---
+
 ## Start Demo NOW
 
 ```bash
