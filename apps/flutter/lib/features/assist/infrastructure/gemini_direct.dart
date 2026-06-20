@@ -1,25 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../domain/models/assist_response.dart';
+import 'api_keys.dart';
 
 /// HOTFIX: Direct Gemini API call from Flutter
 /// This bypasses the backend due to Docker networking issues
 class GeminiDirect {
-  // Read API key from .env file (never commit the actual key!)
-  static String get _apiKey {
-    final key = dotenv.env['GEMINI_API_KEY'];
-    if (key == null || key.trim().isEmpty || key == 'your-api-key-here') {
-      throw StateError(
-        'GEMINI_API_KEY not found in .env file. '
-        'Please add your API key to apps/flutter/.env'
-      );
-    }
-    return key.trim();
-  }
+  // Read API key from api_keys.dart (gitignored)
+  static String get _apiKey => ApiKeys.geminiApiKey;
   
   static const String _model = 'gemini-2.0-flash-exp';
 
@@ -95,6 +86,27 @@ Respond in JSON format:
         modelName: _model,
         latencyMs: 1000,
       );
+    } on GenerativeAIException catch (e) {
+      // Handle 503 high demand error with user-friendly message
+      if (e.message.contains('503') || e.message.contains('high demand')) {
+        debugPrint('[GeminiDirect] High demand error: $e');
+        return AssistResponse(
+          turnId: DateTime.now().millisecondsSinceEpoch.toString(),
+          sessionId: sessionId,
+          status: 'completed',
+          spokenText: 'Our AI service is currently experiencing high demand. Please try again in a moment.',
+          displayText: 'High demand - please retry',
+          confidence: 0.0,
+          followUpMode: 'available',
+          hazards: const [],
+          detectedObjects: const [],
+          providerName: 'gemini-direct',
+          modelName: _model,
+          latencyMs: 0,
+        );
+      }
+      debugPrint('[GeminiDirect] Error: $e');
+      rethrow;
     } catch (e) {
       debugPrint('[GeminiDirect] Error: $e');
       rethrow;
