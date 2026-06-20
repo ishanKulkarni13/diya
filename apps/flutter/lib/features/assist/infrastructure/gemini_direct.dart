@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -21,7 +20,7 @@ class GeminiDirect {
       debugPrint('[GeminiDirect] Starting analysis...');
       
       // Read image bytes
-      final Uint8List imageBytes = await imageFile.readAsBytes();
+      final imageBytes = await imageFile.readAsBytes();
       debugPrint('[GeminiDirect] Image size: ${imageBytes.length} bytes');
 
       // Create Gemini client
@@ -71,25 +70,18 @@ Respond in JSON format:
       // Parse JSON response
       // For demo, just return a simple response
       return AssistResponse(
-        data: AssistResponseData(
-          turnId: DateTime.now().millisecondsSinceEpoch.toString(),
-          sessionId: sessionId,
-          status: 'completed',
-          response: AssistAnalysisResponse(
-            spokenText: text,
-            displayText: text.length > 100 ? text.substring(0, 100) : text,
-            confidence: 0.85,
-            followUpMode: 'available',
-            hazards: [],
-            detectedObjects: [],
-          ),
-          provider: ProviderInfo(
-            name: 'gemini-direct',
-            model: _model,
-            latencyMs: 1000,
-          ),
-        ),
-        traceId: 'direct-${DateTime.now().millisecondsSinceEpoch}',
+        turnId: DateTime.now().millisecondsSinceEpoch.toString(),
+        sessionId: sessionId,
+        status: 'completed',
+        spokenText: text,
+        displayText: text.length > 100 ? text.substring(0, 100) : text,
+        confidence: 0.85,
+        followUpMode: 'available',
+        hazards: const [],
+        detectedObjects: const [],
+        providerName: 'gemini-direct',
+        modelName: _model,
+        latencyMs: 1000,
       );
     } catch (e) {
       debugPrint('[GeminiDirect] Error: $e');

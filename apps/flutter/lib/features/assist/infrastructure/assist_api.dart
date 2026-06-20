@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -15,6 +14,7 @@ import 'gemini_direct.dart';
 class AssistApi {
   AssistApi(this._dio);
 
+  // ignore: unused_field
   final Dio _dio;
 
   /// Creates a new Assist turn by uploading the image and context to the backend.
