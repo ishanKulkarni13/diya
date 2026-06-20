@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -9,14 +8,17 @@ import '../../../core/errors/app_error_mapper.dart';
 import '../domain/models/assist_intent.dart';
 import '../domain/models/assist_response.dart';
 import '../domain/models/assist_trigger.dart';
+import 'gemini_direct.dart';
 
 /// Client for communicating with the FastAPI Assist endpoints.
 class AssistApi {
   AssistApi(this._dio);
 
+  // ignore: unused_field
   final Dio _dio;
 
   /// Creates a new Assist turn by uploading the image and context to the backend.
+  /// HOTFIX: Temporarily using direct Gemini call for demo
   Future<AssistResponse> createTurn({
     required AssistTrigger trigger,
     required AssistIntent intent,
@@ -24,6 +26,15 @@ class AssistApi {
     required String sessionId,
   }) async {
     try {
+      debugPrint('[AssistApi] HOTFIX: Using direct Gemini call');
+      
+      // HOTFIX: Call Gemini directly from Flutter
+      return await GeminiDirect.analyzeImage(
+        imageFile: imageFile,
+        sessionId: sessionId,
+      );
+      
+      /* ORIGINAL BACKEND CALL - Commented out for demo
       debugPrint('[AssistApi] Creating turn for session: $sessionId');
       final fileName = imageFile.path.split('/').last;
 
@@ -57,6 +68,7 @@ class AssistApi {
 
       debugPrint('[AssistApi] Received response: ${response.statusCode}');
       return AssistResponse.fromJson(response.data);
+      */
     } catch (e) {
       debugPrint('[AssistApi] Error: $e');
       if (e is DioException) {

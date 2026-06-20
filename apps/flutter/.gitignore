@@ -12,6 +12,13 @@
 .swiftpm/
 migrate_working_dir/
 
+# Environment files (contains API keys)
+.env
+.env*.local
+
+# API Keys file (DO NOT COMMIT)
+**/api_keys.dart
+
 # IntelliJ related
 *.iml
 *.ipr
