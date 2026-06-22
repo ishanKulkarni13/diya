@@ -28,9 +28,6 @@ class AssistController extends StateNotifier<AssistState> {
       // Ignore if already running
       return;
     }
-    
-    if (!mounted) return; // Safety check
-    
     debugPrint('Assist started');
     state = state.copyWith(status: AssistStatus.capturing, error: null);
 
@@ -46,32 +43,21 @@ class AssistController extends StateNotifier<AssistState> {
         intent: intent,
         isSafetyActive: isSafetyActive,
         onProgress: (status) {
-          if (mounted) {
-            state = state.copyWith(status: status);
-          }
+          state = state.copyWith(status: status);
         },
       );
       
-      if (mounted) {
-        state = state.copyWith(
-          status: AssistStatus.idle,
-          lastResponseText: response.displayText,
-        );
-      }
+      state = state.copyWith(
+        status: AssistStatus.idle,
+        lastResponseText: response.displayText,
+      );
     } on AppError catch (e) {
-      debugPrint('[AssistController] AppError: $e');
-      if (mounted) {
-        state = state.copyWith(status: AssistStatus.error, error: e);
-      }
-    } catch (e, stackTrace) {
-      debugPrint('[AssistController] Unexpected error: $e');
-      debugPrint('[AssistController] Stack trace: $stackTrace');
-      if (mounted) {
-        state = state.copyWith(
-          status: AssistStatus.error,
-          error: AppError.unknown(e.toString()),
-        );
-      }
+      state = state.copyWith(status: AssistStatus.error, error: e);
+    } catch (e) {
+      state = state.copyWith(
+        status: AssistStatus.error,
+        error: AppError.unknown(e.toString()),
+      );
     }
   }
 }
