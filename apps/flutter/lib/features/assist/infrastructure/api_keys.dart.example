@@ -1,6 +1,0 @@
-// API Keys - COPY THIS TO api_keys.dart
-// File: api_keys.dart (gitignored)
-
-class ApiKeys {
-  static const String geminiApiKey = 'your-gemini-api-key-here';
-}

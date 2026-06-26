@@ -3,16 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-
+import '../../../core/config/app_config.dart';
 import '../domain/models/assist_response.dart';
-import 'api_keys.dart';
 
 /// HOTFIX: Direct Gemini API call from Flutter
 /// This bypasses the backend due to Docker networking issues
 class GeminiDirect {
   // Read API key from api_keys.dart (gitignored)
-  static String get _apiKey => ApiKeys.geminiApiKey;
-  
+
   static const String _model = 'gemini-3.5-flash'; // dont change this
 
   /// Call Gemini directly with an image
@@ -22,7 +20,7 @@ class GeminiDirect {
   }) async {
     try {
       debugPrint('[GeminiDirect] Starting analysis...');
-      
+
       // Read image bytes
       final imageBytes = await imageFile.readAsBytes();
       debugPrint('[GeminiDirect] Image size: ${imageBytes.length} bytes');
@@ -30,7 +28,7 @@ class GeminiDirect {
       // Create Gemini client
       final model = GenerativeModel(
         model: _model,
-        apiKey: _apiKey,
+        apiKey: AppConfig.geminiApiKey,
       );
 
       // Create prompt
@@ -59,17 +57,16 @@ Respond in JSON format:
 
       // Call Gemini
       final content = [
-        Content.multi([
-          TextPart(prompt),
-          DataPart('image/jpeg', imageBytes),
-        ])
+        Content.multi([TextPart(prompt), DataPart('image/jpeg', imageBytes)]),
       ];
 
       debugPrint('[GeminiDirect] Calling Gemini API...');
       final response = await model.generateContent(content);
-      
+
       final text = response.text ?? '';
-      debugPrint('[GeminiDirect] Response: ${text.substring(0, text.length > 100 ? 100 : text.length)}...');
+      debugPrint(
+        '[GeminiDirect] Response: ${text.substring(0, text.length > 100 ? 100 : text.length)}...',
+      );
 
       // Parse JSON response to extract structured data
       String spokenText = 'Unable to analyze the image.';
@@ -94,19 +91,25 @@ Respond in JSON format:
 
         // Parse the JSON
         final jsonResponse = jsonDecode(cleanedText) as Map<String, dynamic>;
-        
+
         spokenText = jsonResponse['spoken_text'] as String? ?? spokenText;
         displayText = jsonResponse['display_text'] as String? ?? displayText;
         confidence = (jsonResponse['confidence'] as num?)?.toDouble() ?? 0.85;
-        
+
         if (jsonResponse['hazards'] is List) {
-          hazards = (jsonResponse['hazards'] as List).map((e) => e.toString()).toList();
+          hazards = (jsonResponse['hazards'] as List)
+              .map((e) => e.toString())
+              .toList();
         }
         if (jsonResponse['detected_objects'] is List) {
-          detectedObjects = (jsonResponse['detected_objects'] as List).map((e) => e.toString()).toList();
+          detectedObjects = (jsonResponse['detected_objects'] as List)
+              .map((e) => e.toString())
+              .toList();
         }
 
-        debugPrint('[GeminiDirect] Parsed - Spoken: ${spokenText.substring(0, spokenText.length > 50 ? 50 : spokenText.length)}...');
+        debugPrint(
+          '[GeminiDirect] Parsed - Spoken: ${spokenText.substring(0, spokenText.length > 50 ? 50 : spokenText.length)}...',
+        );
       } catch (parseError) {
         debugPrint('[GeminiDirect] JSON parse failed: $parseError');
         // Fallback: use raw text if JSON parsing fails
@@ -137,7 +140,8 @@ Respond in JSON format:
           turnId: DateTime.now().millisecondsSinceEpoch.toString(),
           sessionId: sessionId,
           status: 'completed',
-          spokenText: 'Our AI service is currently experiencing high demand. Please try again in a moment.',
+          spokenText:
+              'Our AI service is currently experiencing high demand. Please try again in a moment.',
           displayText: 'High demand - please retry',
           confidence: 0.0,
           followUpMode: 'available',
