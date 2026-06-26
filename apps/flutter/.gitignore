@@ -15,6 +15,9 @@ migrate_working_dir/
 # Environment files (contains API keys)
 .env
 .env*.local
+env/dev.json
+env/staging.json
+env/prod.json
 
 # API Keys file (DO NOT COMMIT)
 **/api_keys.dart
