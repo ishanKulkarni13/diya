@@ -1,5 +1,4 @@
 import 'package:flutter/widgets.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'core/config/app_config.dart';
 import 'core/runtime/diya_runtime.dart';
@@ -12,12 +11,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   debugPrint('=== [Headless PoC] Starting Boot Sequence ===');
-
-  try {
-    await dotenv.load(fileName: '.env', isOptional: true);
-  } on FileNotFoundError {
-    debugPrint('No .env file found. Proceeding with defaults.');
-  }
 
   AppConfig.validate();
 
