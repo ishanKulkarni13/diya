@@ -75,12 +75,8 @@ class AssistService:
         trace_id = str(uuid.uuid4())
 
         logger.info(
-            "Starting assist analysis",
-            extra={
-                "session_id": session_id,
-                "turn_id": turn_id,
-                "intent_type": intent_type,
-            },
+            f"[SERVICE] Starting assist analysis: session={session_id}, turn={turn_id}, "
+            f"intent={intent_type}, image_size={len(image_bytes)} bytes, mime={mime_type}"
         )
 
         try:
@@ -133,14 +129,8 @@ class AssistService:
                 ) from e
 
         logger.info(
-            "Assist analysis completed",
-            extra={
-                "session_id": session_id,
-                "turn_id": turn_id,
-                "latency_ms": result.latency_ms,
-                "provider": result.provider_name,
-                "model": result.model_name,
-            },
+            f"[SERVICE] Assist analysis completed: session={session_id}, turn={turn_id}, "
+            f"latency={result.latency_ms}ms, provider={result.provider_name}, model={result.model_name}"
         )
 
         return self._build_response(

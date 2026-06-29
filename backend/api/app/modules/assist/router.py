@@ -92,6 +92,28 @@ async def create_assist_turn(
     # Read image bytes (ephemeral — not persisted)
     image_bytes = await image_file.read()
     mime_type = image_file.content_type or "image/jpeg"
+    
+    # Log image upload diagnostics
+    logger.info(
+        f"[ROUTER] Image upload: filename={image_file.filename}, "
+        f"content_type={image_file.content_type}, size={len(image_bytes)} bytes"
+    )
+    
+    if len(image_bytes) >= 2:
+        is_jpeg = image_bytes.startswith(b'\xff\xd8')
+        logger.info(f"[ROUTER] Image magic bytes: {image_bytes[:2].hex()} (JPEG: {is_jpeg})")
+    else:
+        logger.error(f"[ROUTER] Image too small: {len(image_bytes)} bytes")
+    
+    if len(image_bytes) == 0:
+        logger.error("[ROUTER] Empty image received from client")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "code": "ASSIST.IMAGE.EMPTY",
+                "message": "Empty image data received. Please ensure image is captured correctly."
+            },
+        )
 
     # Delegate to service
     return await assist_service.analyze_image(

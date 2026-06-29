@@ -144,6 +144,57 @@ class GeminiProvider:
 
         The prompt is tailored for visually impaired navigation assistance.
         """
+        # ── Image diagnostics ────────────────────────────────────────────
+        logger.info("[GEMINI] Image diagnostics:")
+        logger.info(f"[GEMINI]   Size: {len(image_bytes)} bytes")
+        logger.info(f"[GEMINI]   MIME: {mime_type}")
+        logger.info(f"[GEMINI]   Intent: {intent_type}")
+        
+        if len(image_bytes) >= 16:
+            logger.info(f"[GEMINI]   First 16 bytes (hex): {image_bytes[:16].hex()}")
+        else:
+            logger.warning(f"[GEMINI]   Image too small: only {len(image_bytes)} bytes")
+        
+        if len(image_bytes) >= 2:
+            is_jpeg = image_bytes.startswith(b'\xff\xd8')
+            logger.info(f"[GEMINI]   JPEG magic valid: {is_jpeg}")
+        else:
+            logger.error("[GEMINI]   Image too small to validate JPEG magic")
+        
+        # ── Image validation ─────────────────────────────────────────────
+        # Reject empty images
+        if len(image_bytes) == 0:
+            logger.error("[GEMINI] Empty image bytes received")
+            raise MalformedResponseError("Empty image data - no bytes received")
+        
+        # Reject invalid JPEG if mime type claims it's JPEG
+        if mime_type in ("image/jpeg", "image/jpg"):
+            if not image_bytes.startswith(b'\xff\xd8'):
+                logger.error(
+                    f"[GEMINI] Invalid JPEG magic bytes. "
+                    f"Expected: ff d8, Got: {image_bytes[:2].hex() if len(image_bytes) >= 2 else 'N/A'}"
+                )
+                raise MalformedResponseError(
+                    f"Invalid JPEG format - magic bytes mismatch. "
+                    f"Got: {image_bytes[:2].hex() if len(image_bytes) >= 2 else 'empty'}"
+                )
+        
+        # Warn on very large images (>10MB)
+        if len(image_bytes) > 10 * 1024 * 1024:
+            logger.warning(
+                f"[GEMINI] Large image detected: {len(image_bytes)} bytes "
+                f"({len(image_bytes) / (1024 * 1024):.2f} MB). May cause timeout."
+            )
+        
+        # Warn on suspiciously small images (<1KB)
+        if len(image_bytes) < 1024:
+            logger.warning(
+                f"[GEMINI] Suspiciously small image: {len(image_bytes)} bytes. "
+                f"Typical JPEG should be larger."
+            )
+        
+        logger.info("[GEMINI] Image validation passed, proceeding to API call")
+        
         prompt = self._build_prompt(intent_type)
 
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
